@@ -1,0 +1,48 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "factoriomod",
+            "request": "launch",
+            "name": "Factorio Mod Debug (Settings & Data)(Solo)",
+            "hookSettings": false,
+            "hookData": false,
+            "hookMode": "debug",
+            "hookControl": [
+                "yet_another_train_manager"
+            ],
+            "adjustMods": {
+                "yet_another_logistic_train_network": true
+            }
+        },
+        {
+            "type": "factoriomod",
+            "request": "launch",
+            "name": "Factorio Mod Debug (Settings & Data)(With mods)",
+            "hookSettings": false,
+            "hookData": false,
+            "hookMode": "debug",
+            "hookControl": [
+                "yet_another_train_manager",
+                "transfert_controller"
+            ],
+            "adjustMods": {
+                "yet_another_logistic_train_network": true,
+                "transfert_controller": true
+            }
+        },
+        {
+            "type": "factoriomod",
+            "request": "launch",
+            "name": "Factorio Mod Debug (Profile)",
+            "hookMode": "profile",
+            "hookControl": [
+                "yet_another_train_manager",
+                "transfert_controller"
+            ],
+            "adjustMods": {
+                "yet_another_logistic_train_network": true
+            }
+        }
+    ]
+}

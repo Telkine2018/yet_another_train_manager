@@ -1,0 +1,54 @@
+
+
+
+----------------------------------------
+Input:
+
+Requester/provider:
+
+    Input:
+        Red wire:
+            -1 *  request item / fluid
+            1  *  provided item / fluid
+            command signals
+        Green wire:
+            Threshold for query:
+    Output:
+        At provider:
+            Red/Green wire
+                -1 * quantities of items/fluid to deliver
+            Usage: loading
+                Wait while:  output + content train <= 0
+
+        At requester:
+            Red/Green wire
+                0 (content of train after unloading)
+
+-----
+Buffer:
+    Input:
+        Red wire:
+            -1 *  request item / fluid
+            1  * provided item / fluid
+            command signals
+        Green wire:
+            Threshold for query:
+
+    Output:
+        At provider:
+            Red/Green wire
+                -1 * content of a full train
+            Wait while:  output + content train <= 0
+                manage partial loading
+
+        At requester:
+            Red/Green wire
+                -1 * content of the train after unloading
+            Wait while: output + content train < 0
+
+Feeder:
+    At requester:
+            Red/Green wire
+                -1 * content of the train after unloading
+            Wait while: output + content train <= 0
+
