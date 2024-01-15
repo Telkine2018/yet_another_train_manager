@@ -1,4 +1,3 @@
-
 local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local defs = require("scripts._defs")
@@ -174,46 +173,41 @@ local function get_teleport_info(device)
     local connected_rail = r.rail
     if not connected_rail then return nil, true end
 
-    local dst_trainstop = connected_rail.get_rail_segment_entity(
-        r.rail_direction, false)
+    local dst_trainstop = connected_rail.get_rail_segment_entity(r.rail_direction, false)
     if not dst_trainstop then return nil, true end
 
-    local rail_direction = dst_trainstop.connected_rail_direction
-    local rev_rail_direction =
-        rail_direction == defines.rail_direction.front and
-        defines.rail_direction.back or defines.rail_direction.front
-
-    local rail = connected_rail.get_rail_segment_end(rev_rail_direction)
-    if not rail then return nil, true end
-
     local pos1 = connected_rail.position
-    local pos2 = rail.position
-
     local x1, x2, y1, y2
     local xd, yd = 0, 0
     local margin = 7
-    if (math.abs(pos1.y - pos2.y) < 1) then
-        if pos1.x < pos2.x then
-            x1 = pos1.x - margin
-            x2 = pos2.x + margin
-            xd = 1
-        else
-            xd = -1
-            x1 = pos2.x - margin
-            x2 = pos1.x + margin
-        end
+
+    local len = #ttrain.carriages
+    local carriage_len = 7
+    local train_len = carriage_len * len
+
+    local direction = dst_trainstop.direction
+    if direction == defines.direction.east then
+        xd = -1
+        x1 = pos1.x - train_len - margin
+        x2 = pos1.x + margin
         y1 = pos1.y - 1
         y2 = pos1.y + 1
-    else
-        if pos1.y < pos2.y then
-            y1 = pos1.y - margin
-            y2 = pos2.y + margin
-            yd = 1
-        else
-            yd = -1
-            y1 = pos2.y - margin
-            y2 = pos1.y + margin
-        end
+    elseif direction == defines.direction.west then
+        xd = 1
+        x1 = pos1.x - margin
+        x2 = pos1.x + train_len + margin
+        y1 = pos1.y - 1
+        y2 = pos1.y + 1
+    elseif direction == defines.direction.north then
+        yd = 1
+        y1 = pos1.y - margin
+        y2 = pos1.y + train_len + margin
+        x1 = pos1.x - 1
+        x2 = pos1.x + 1
+    elseif direction == defines.direction.south then
+        yd = -1
+        y1 = pos1.y - train_len - margin
+        y2 = pos1.y + margin
         x1 = pos1.x - 1
         x2 = pos1.x + 1
     end
@@ -241,6 +235,14 @@ local function get_teleport_info(device)
     local count = device.entity.surface.count_entities_filtered {
         type = { "locomotive", "cargo-wagon", "fluid-wagon" },
         area = { { x1, y1 }, { x2, y2 } }
+    }
+    rendering.draw_rectangle {
+        color = { 1, 0, 0 },
+        surface = dst_trainstop.surface,
+        forces = {dst_trainstop.force_index},
+        time_to_live = 120,
+        left_top = { x1, y1 },
+        right_bottom = { x2, y2 }
     }
 
     if count > 0 then return nil, true end
@@ -350,8 +352,7 @@ local function do_teleport(info)
 
         if not created then
             for _, c in pairs(create_list) do c.destroy() end
-            info.dst_device.teleport_failure =
-                (info.dst_device.teleport_failure or 0) + 1
+            info.dst_device.teleport_failure = (info.dst_device.teleport_failure or 0) + 1
             logger.report_teleport_fail(info.device, info.dst_device, info.train)
             failure = true
             train.teleporting = false
@@ -424,6 +425,7 @@ local function do_teleport(info)
         end
         x = x + 7 * xd
         y = y + 7 * yd
+        index = index + 1
     end
     device.teleport_ecount = (device.teleport_ecount or 0) + 1
     info.dst_device.teleport_rcount = (info.dst_device.teleport_rcount or 0) + 1
@@ -554,6 +556,9 @@ function teleport.check_teleport(device)
                     teleport.apply_teleportation(ti)
                     restore_player_trains(player_map)
                 else
+                    local schedule = ti.train.train.schedule
+                    schedule.current = schedule.current + 1
+                    ti.train.train.schedule = schedule
                     yutils.remove_train(ti.train, true)
                 end
                 return true

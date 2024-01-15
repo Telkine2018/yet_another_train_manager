@@ -45,6 +45,8 @@ declare_signal("builder_stop_remove")
 declare_signal("builder_remove_destroy")
 declare_signal("operation")
 declare_signal("identifier")
+declare_signal("create_count")
+declare_signal("train_count")
 
 data:extend(declarations)
 

@@ -1236,6 +1236,19 @@ function yutils.load_pattern_cache()
     end
 end
 
+
+---@param device Device
+---@param parameters ConstantCombinatorParameters[]
+function yutils.set_device_output(device, parameters)
+    if not device.out_red.valid then return end
+
+    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+    cb.parameters = parameters
+
+    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+    cb.parameters = parameters
+end
+
 function yutils.update_runtime_config(device) end
 
 function yutils.init_ui(context) end

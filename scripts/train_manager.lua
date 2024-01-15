@@ -221,7 +221,9 @@ local function find_depot_and_route(network, train, device)
         return nil
     end
 
-    yutils.set_train_composition(train, depot)
+    if depot.role ~= builder_role then
+        yutils.set_train_composition(train, depot)
+    end
     allocator.route_to_station(train, depot)
     yutils.link_train_to_depot(depot, train)
     return depot
