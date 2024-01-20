@@ -1,13 +1,6 @@
 data:extend({
     {
         type = "bool-setting",
-        name = "yaltn-debug",
-		setting_type = "startup",
-        default_value = false,
-		order="aa"
-    },
-    {
-        type = "bool-setting",
         name = "yaltn-disabled",
 		setting_type = "runtime-global",
         default_value = false,
