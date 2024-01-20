@@ -382,7 +382,7 @@ function yutils.add_request(request)
 
     if request.inqueue then return end
 
-    if device.dconfig.inactive then return end
+    if device.inactive then return end
 
     request.inqueue = true
     request.cancelled = false
@@ -753,7 +753,7 @@ function yutils.find_refueler(network, train)
 
             if not refueler.trainstop.connected_rail then goto skip end
 
-            if refueler.dconfig.inactive then goto skip end
+            if refueler.inactive then goto skip end
 
             table.insert(refueler_list, refueler)
             table.insert(goals, { train_stop = refueler.trainstop })
@@ -878,7 +878,7 @@ function yutils.set_device_image(device)
     local role = device.role
 
     if depot_roles[role] then
-        if device.dconfig.inactive then
+        if device.inactive then
             image_index = pink
         elseif device.train then
             image_index = blue
@@ -888,7 +888,7 @@ function yutils.set_device_image(device)
         goto setting
     end
 
-    if device.dconfig.inactive then
+    if device.inactive then
         image_index = pink
         goto setting
     end
@@ -956,7 +956,7 @@ function yutils.init_se(context, force) end
 ---@param train Train
 ---@return boolean
 function yutils.is_train_stuck(train)
-    if not train.train.valid then return false end
+
     if not train.timeout_tick or not train.timeout_pos then return false end
 
     if not train.timeout_pos or train.timeout_tick >= GAMETICK then

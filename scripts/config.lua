@@ -45,6 +45,8 @@ local config = {
 
     default_parking_penalty = 300,
 
+    teleport_timeout = 30 * 60,
+
     use_combinator_for_request = false,
 }
 

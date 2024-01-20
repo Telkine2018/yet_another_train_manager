@@ -286,6 +286,7 @@ local function new_device(entity, tags)
     if tags then
         dconfig = tags --[[@as DeviceConfig]]
         dconfig.inactive = config.inactive_on_copy
+        device.inactive = dconfig.inactive and 1 or nil
     elseif config_id > 0 then
         dconfig = context.configs[config_id]
         need_register = false
@@ -601,6 +602,7 @@ local function process_device(device)
 
     local dconfig = device.dconfig
     role = dconfig.role
+    device.inactive = dconfig.inactive and 1 or nil
 
     -- no role
     if not used_roles[role] then
@@ -990,7 +992,7 @@ local function process_device(device)
             device.station_locked = dconfig.station_locked
             device.max_load_time = dconfig.max_load_time
             if not device.train then
-                if not dconfig.inactive then
+                if not device.inactive then
                     local train = allocator.find_train(device, device.network_mask, device.patterns)
                     if not train then return end
                     yutils.unlink_train_from_depots(train.depot, train)
@@ -1055,23 +1057,7 @@ local function process_device(device)
 
         ---@cast circuit -nil
         if circuit then
-            local red_signals = circuit.signals
-
-            if red_signals then
-                for _, signal_amount in ipairs(red_signals) do
-                    local signal = signal_amount.signal
-                    local signal_type = signal.type
-                    local name = signal.name
-                    if name and signal_amount.count ~= 0 then
-                        if signal_type == "virtual" then
-                            local v = virtual_to_internals[name]
-                            if v then
-                                device[v] = signal_amount.count
-                            end
-                        end
-                    end
-                end
-            end
+            read_virtual_signals()
         end
     elseif role == teleporter_role then
         if device.role ~= teleporter_role then
@@ -1087,6 +1073,9 @@ local function process_device(device)
             }) --[[@as LuaEntity]]
         end
         device.teleport_range = dconfig.teleport_range or config.teleport_range
+        if circuit then
+            read_virtual_signals()
+        end
         if teleport.check_teleport(device) then
             yutils.set_device_image(device)
         end

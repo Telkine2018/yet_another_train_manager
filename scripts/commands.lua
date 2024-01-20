@@ -7,6 +7,7 @@ local Runtime = require("scripts.runtime")
 local yutils = require("scripts.yutils")
 local config = require("scripts.config")
 local logger = require("scripts.logger")
+local device_selection = require("scripts.device_selection")
 
 local cmd = {}
 local prefix = commons.prefix
@@ -67,18 +68,26 @@ local function cmd_log(p)
 end
 
 ---@param p CustomCommandData
-local function cmd_stuck_trains(p)
+local function cmd_trains(p)
     local player = game.players[p.player_index]
-    player.print("---- Stuck Trains -- ")
+    player.print("---- Stuck/Invalid Trains -- ")
 
     local context = yutils.get_context()
     local force_index = player.force_index
     for _, train in pairs(context.trains) do
-        if train.train.valid and train.train.front_stock.force_index == force_index and yutils.is_train_stuck(train) then
+        if train.train.valid then
+            if train.train.front_stock.force_index == force_index and yutils.is_train_stuck(train) then
+                player.print({
+                    prefix .. "-logger.train_stuck",
+                    flib_format.time(train.timeout_tick),
+                    logger.gps_to_text(train.train.front_stock),
+                    (train.delivery and logger.delivery_to_text(train.delivery) or "*")
+                })
+            end
+        else
             player.print({
-                prefix .. "-logger.train_stuck",
+                prefix .. "-logger.train_invalid",
                 flib_format.time(train.timeout_tick),
-                logger.gps_to_text(train.train.front_stock),
                 (train.delivery and logger.delivery_to_text(train.delivery) or "*")
             })
         end
@@ -199,6 +208,7 @@ local function cmd_active(p)
         ---@cast device Device
         if device.entity.force_index == force_index then
             device.dconfig.inactive = nil
+            device.inactive = nil
         end
     end
 end
@@ -223,7 +233,6 @@ end
 
 ---@param p CustomCommandData
 local function cmd_distances(p)
-
     local player = game.players[p.player_index]
     local sid = p.parameter
     local id
@@ -262,23 +271,31 @@ local function cmd_distances(p)
         ---@cast from_device Device
         if from_device.distance_cache and from_device.distance_cache[id] then
             local pos = "[" .. from_device.position.x .. "," .. from_device.position.y .. "]"
-            player.print("From: " .. from_device.trainstop.backer_name ..  pos .. " = " .. tostring(from_device.distance_cache[id]))
+            player.print("From: " .. from_device.trainstop.backer_name .. pos .. " = " .. tostring(from_device.distance_cache[id]))
             from_count = from_count + 1
         end
     end
     player.print("---- #to=" .. to_count .. ", #from=" .. from_count)
 end
 
+---@param p CustomCommandData
+local function cmd_teleporters(p)
+    local player = game.players[p.player_index]
+
+    device_selection.show_teleporters(player)
+end
+
 commands.add_command("yatm_scheduler", { "yaltn_scheduler" }, cmd_scheduler)
 commands.add_command("yatm_disable_network", { "yaltn_disable_network" }, cmd_disable_network)
 commands.add_command("yatm_enable_network", { "yaltn_enable_network" }, cmd_enable_network)
 commands.add_command("yatm_log", { "yaltn_log" }, cmd_log)
-commands.add_command("yatm_stuck_trains", { "yaltn_stuck_trains" }, cmd_stuck_trains)
+commands.add_command("yatm_trains", { "yaltn_trains" }, cmd_trains)
 commands.add_command("yatm_stat", { "yaltn_stat" }, cmd_stat)
 commands.add_command("yatm_manual_mode", { "yaltn_manual_mode" }, cmd_manual_mode)
 commands.add_command("yatm_active", { "yatm_active" }, cmd_active)
 commands.add_command("yatm_list_manual", { "yatm_list_manual" }, cmd_list_manual)
 commands.add_command("yatm_distances", { "yatm_distances" }, cmd_distances)
+commands.add_command("yatm_teleporters", { "yatm_teleporters" }, cmd_teleporters)
 
 local function on_load() devices_runtime = Runtime.get("Device") end
 tools.on_load(on_load)

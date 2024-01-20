@@ -7,6 +7,7 @@ local Runtime = require("scripts.runtime")
 local yutils = require("scripts.yutils")
 local scheduler = require("scripts.scheduler")
 local config = require("scripts.config")
+local device_selection = require("scripts.device_selection")
 
 local uiutils = require("scripts.ui.utils")
 local uistock = require("scripts.ui.stock")
@@ -418,7 +419,11 @@ end
 tools.on_gui_click(prefix .. ".openui", ---@param e EventData.on_gui_click
     function(e)
         local player = game.players[e.player_index]
-        open(player)
+        if not(e.shift or e.control or e.alt) then
+            open(player)
+        elseif e.control then
+            device_selection.show_teleporters(player)
+        end
     end)
 
 tools.on_event(defines.events.on_research_finished,

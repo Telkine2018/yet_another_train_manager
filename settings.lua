@@ -136,6 +136,14 @@ data:extend({
         minimum_value = 1,
         default_value = 4,
         maximum_value = 31
+    },
+    {
+        type = "int-setting",
+        name = "yaltn-teleport_timeout",
+		setting_type = "runtime-global",
+        order="ar",
+        minimum_value = 300,
+        default_value = 30 * 60,
     }
 })
 

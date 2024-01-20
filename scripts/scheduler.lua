@@ -190,7 +190,7 @@ local function find_provider(request, forbidden, no_surface_change)
             return
         end
 
-        if production_device.dconfig.inactive then
+        if production_device.inactive then
             production_device.failcode = 56
             request.failcode = 56
             return
@@ -716,7 +716,7 @@ function scheduler.process_request(request)
 
     if device.network.disabled then return end
 
-    if device.dconfig.inactive then
+    if device.inactive then
         return
     end
 

@@ -715,7 +715,13 @@ local is_train_stuck = yutils.is_train_stuck
 
 ---@param train Train
 local function process_trains(train)
-    if is_train_stuck(train) then logger.report_train_stuck(train) end
+    if train.train.valid then
+        if is_train_stuck(train) then 
+            logger.report_train_stuck(train) 
+        end
+    else
+        yutils.remove_train(train)
+    end
 end
 
 local function on_load() trains_runtime = Runtime.get("Trains") end

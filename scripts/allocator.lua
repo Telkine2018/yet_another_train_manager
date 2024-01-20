@@ -63,7 +63,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
             return false
         end
 
-        if depot.dconfig.inactive then
+        if depot.inactive then
             depot.failcode = 69
             return false
         end
@@ -322,7 +322,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
-                if candidate.dconfig.inactive then
+                if candidate.inactive then
                     candidate.failcode = 27
                     goto skip
                 end
@@ -406,7 +406,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
             goto skip_builder
         end
 
-        if builder.dconfig.inactive then
+        if builder.inactive then
             builder.failcode = 36
             goto skip_builder
         end

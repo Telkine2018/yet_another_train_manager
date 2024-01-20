@@ -35,6 +35,69 @@ local function trainstop_to_text(device)
     return trainstop.surface.name .. ":" .. trainstop.backer_name
 end
 
+local tag_signal = commons.prefix .. "-teleporter_range"
+
+---@param player LuaPlayer
+---@return boolean?
+local function remove_teleport_range(player)
+    local force = player.force
+    local tags = force.find_chart_tags(player.surface)
+    local found
+    for _, t in ipairs(tags) do
+        if t.icon and t.icon.name == tag_signal then
+            t.destroy()
+            found = true
+        end
+    end
+    return found
+end
+
+---@param player LuaPlayer
+---@param device Device
+local function show_teleport_range(player, device)
+    local surface = device.entity.surface
+    local force = player.force
+    local range = device.teleport_range
+
+    local count = math.floor(32 * range / 200)
+    if count == 0 then return end
+
+    local position = device.entity.position
+    local icon = {
+        type = "virtual",
+        name = tag_signal
+    }
+    for i = 0, 2 * count - 1 do
+        local angle = i * math.pi / count
+        local cos = math.cos(angle)
+        local sin = math.sin(angle)
+
+        local x = position.x + range * cos
+        local y = position.y + range * sin
+
+        force.add_chart_tag(surface, {
+            icon = icon,
+            position = { x, y },
+            last_user = player
+        })
+    end
+end
+
+---@param player LuaPlayer
+local function show_teleporters(player)
+    local context = yutils.get_context()
+    local network = yutils.get_network_base(player.force_index, player.surface_index)
+
+    if not remove_teleport_range(player) then
+        if network.teleporters then
+            for _, teleporter in pairs(network.teleporters) do
+                show_teleport_range(player, teleporter)
+            end
+        end
+    end
+end
+device_selection.show_teleporters = show_teleporters
+
 ---@param player LuaPlayer
 ---@param entity LuaEntity
 local function show_selected(player, entity)
@@ -56,8 +119,6 @@ local function show_selected(player, entity)
         vars.selected_device = nil
         return
     end
-
-    vars.selected_device = entity
 
     ---@type Device
     local device = devices[entity.unit_number]
@@ -149,7 +210,7 @@ local function show_selected(player, entity)
         end
 
         if next(device.requested_items) then
-            color = device.dconfig.inactive and { 1, 0, 1, 1 } or { 1, 0, 0, 1 }
+            color = device.inactive and { 1, 0, 1, 1 } or { 1, 0, 0, 1 }
             for name, request in pairs(device.requested_items) do
                 local amount = request.requested - request.provided
                 if amount >= request.threshold then
@@ -172,7 +233,7 @@ local function show_selected(player, entity)
         end
 
         if next(device.produced_items) then
-            color = device.dconfig.inactive and { 1, 0, 1, 1 } or { 0, 1, 0, 1 }
+            color = device.inactive and { 1, 0, 1, 1 } or { 0, 1, 0, 1 }
             for name, request in pairs(device.produced_items) do
                 local amount = request.provided - request.requested
                 local text = { "yaltn-messages.tooltip_provide_item" }
@@ -186,20 +247,16 @@ local function show_selected(player, entity)
         end
 
         if device.ebuffer then
-            local percent = device.ebuffer.energy /
-                commons.teleport_electric_buffer_size * 100
-            color = device.dconfig.inactive and { 1, 0, 1, 1 } or
-                (percent < 0 and { 1, 0, 0, 1 } or { 0, 1, 0, 1 })
-            if percent < 100 then
-                color = { 1, 0, 0, 1 }
-            else
-                color = { 0, 1, 0, 1 }
-            end
+            local percent = device.ebuffer.energy / commons.teleport_electric_buffer_size * 100
+            color = device.inactive and { 1, 0, 1, 1 } or (percent < 100 and { 1, 0, 0, 1 } or { 0, 1, 0, 1 })
             if (device.teleport_last_src and device.teleport_last_src.trainstop.valid) then
                 draw_text(" << " .. device.teleport_last_src.trainstop.backer_name)
             end
             if (device.teleport_last_dst and device.teleport_last_dst.trainstop.valid) then
                 draw_text(" >> " .. device.teleport_last_dst.trainstop.backer_name)
+            end
+            if device.failcode and device.failcode >= 200 and device.failcode <= 300 then
+                draw_text { "yaltn-teleport.m" .. device.failcode }
             end
             local ecount = device.teleport_ecount or 0
             local rcount = device.teleport_rcount or 0
@@ -224,7 +281,7 @@ local function show_selected(player, entity)
                 for pattern in pairs(device.patterns) do
                     local markers = yutils.create_layout_strings(pattern)
                     local text = table.concat(markers)
-                    draw_text{"", text}
+                    draw_text { "", text }
                 end
             end
         end

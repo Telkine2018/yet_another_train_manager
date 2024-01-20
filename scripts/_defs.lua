@@ -55,6 +55,7 @@ local prefix = commons.prefix
 ---@field output_delivery_content boolean ?
 ---@field scanned_patterns {[string]:boolean}
 ---@field distance_cache {[integer]:number}
+---@field inactive integer?
 
 ---@class BuilderConfig
 ---@field builder_locomotive_item string
@@ -80,7 +81,6 @@ local prefix = commons.prefix
 ---@field delivery_penalty integer?                         @ Distance penalty for each penalty
 ---@field station_locked boolean?                           @ Locked to station
 ---@field teleport_range integer?                           @ teleporter range
----@field inactive boolean?                                 @ Device is not active
 ---@field combined boolean?                                 @ Combined request
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
@@ -89,6 +89,7 @@ local prefix = commons.prefix
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
 ---@field remove_tick integer
+---@field inactive boolean?                                 @ Device is not active
 
 ---@class RequestConfig
 ---@field name string
@@ -387,8 +388,10 @@ def.virtual_to_internals = {
 
     [prefix .. "-builder_stop_create"] = "builder_stop_create",
     [prefix .. "-builder_stop_remove"] = "builder_stop_remove",
-    [prefix .. "-builder_remove_destroy"] = "builder_remove_destroy"
-    
+    [prefix .. "-builder_remove_destroy"] = "builder_remove_destroy",
+
+    [prefix .. "-inactive"] = "inactive"
+
 
 }
 

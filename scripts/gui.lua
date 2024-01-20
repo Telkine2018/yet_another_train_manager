@@ -920,6 +920,7 @@ local function update_runtime_config(device, player)
     local dconfig = device.dconfig
     device.patterns = dconfig.patterns or device.scanned_patterns
     device.has_specific_pattern = dconfig.has_specific_pattern
+    device.inactive = dconfig.inactive and 1 or nil
 
     device.conf_change = true
     if not device.dconfig.requests then

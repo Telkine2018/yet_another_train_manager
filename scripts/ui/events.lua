@@ -234,8 +234,7 @@ function uievents.update(player)
             finfo = content.add { type = "flow", direction = "horizontal" }
             uiutils.create_product_button(finfo, event.request_name, event.request_amount, uiutils.slot_requested_color)
         elseif event.target_teleport then
-            finfo = uiutils.create_station_name(content, event.target_teleport,
-                header_defs[field_index].width)
+            finfo = uiutils.create_station_name(content, event.target_teleport, header_defs[field_index].width)
         else
             finfo = row.add { type = "empty-widget" }
         end
