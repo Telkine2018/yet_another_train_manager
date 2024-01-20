@@ -42,7 +42,7 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
     if not network.teleporters then return end
 
     local dd = distance(start_pos, target_pos)
-    if dd < 90 then return end
+    if dd < config.teleport_min_distance then return end
 
     local min_d1
     local min_tlp1

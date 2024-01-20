@@ -114,9 +114,25 @@ data:extend({
     },
     {
         type = "int-setting",
-        name = "yaltn-ui_wagon_slots",
+        name = "yaltn-teleport_timeout",
 		setting_type = "runtime-global",
         order="ao",
+        minimum_value = 300,
+        default_value = 30 * 60,
+    },
+    {
+        type = "int-setting",
+        name = "yaltn-teleport_min_distance",
+		setting_type = "runtime-global",
+        order="ap",
+        minimum_value = 30,
+        default_value = 90
+    },
+    {
+        type = "int-setting",
+        name = "yaltn-ui_wagon_slots",
+		setting_type = "runtime-global",
+        order="ar",
         minimum_value = 1,
         default_value = 40
     },
@@ -124,7 +140,7 @@ data:extend({
         type = "int-setting",
         name = "yaltn-ui_fluid_wagon_capacity",
 		setting_type = "runtime-global",
-        order="ap",
+        order="as",
         minimum_value = 1,
         default_value = 25000
     },
@@ -132,19 +148,11 @@ data:extend({
         type = "int-setting",
         name = "yaltn-ui_train_wagon_count",
 		setting_type = "runtime-global",
-        order="aq",
+        order="at",
         minimum_value = 1,
         default_value = 4,
         maximum_value = 31
     },
-    {
-        type = "int-setting",
-        name = "yaltn-teleport_timeout",
-		setting_type = "runtime-global",
-        order="ar",
-        minimum_value = 300,
-        default_value = 30 * 60,
-    }
 })
 
 data:extend({
