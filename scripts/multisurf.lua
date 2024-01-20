@@ -116,12 +116,7 @@ function multisurf.init_se(context, force)
         if context.use_se then clear_se(context) end
         return
     end
-
-    local se_on_train_teleport_finished_event = remote.call("space-exploration", "get_on_train_teleport_finished_event") --[[@as string]]
-    local se_on_train_teleport_started_event = remote.call("space-exploration", "get_on_train_teleport_started_event") --[[@as string]]
-
-    script.on_event(se_on_train_teleport_finished_event, on_train_teleport_finished)
-    script.on_event(se_on_train_teleport_started_event, on_train_teleport_started)
+    multisurf.register_se()
     for _, ff in pairs(context.networks) do
         for _, network in pairs(ff) do
             if not network.connected_network or force then
@@ -129,6 +124,22 @@ function multisurf.init_se(context, force)
             end
         end
     end
+end
+
+local se_on_train_teleport_finished_event 
+local se_on_train_teleport_started_event
+
+function multisurf.register_se()
+
+    if not USE_SE then
+        return
+    end
+
+    if se_on_train_teleport_finished_event then return end
+    se_on_train_teleport_finished_event = remote.call("space-exploration", "get_on_train_teleport_finished_event") --[[@as string]]
+    se_on_train_teleport_started_event = remote.call("space-exploration", "get_on_train_teleport_started_event") --[[@as string]]
+    script.on_event(se_on_train_teleport_finished_event, on_train_teleport_finished)
+    script.on_event(se_on_train_teleport_started_event, on_train_teleport_started)
 end
 
 ---@param network SurfaceNetwork
@@ -270,6 +281,7 @@ tools.on_event(defines.events.on_selected_entity_changed,
 tools.on_event(defines.events.on_gui_opened, on_gui_opened)
 
 yutils.init_se = multisurf.init_se
+yutils.register_se = multisurf.register_se
 yutils.add_cross_network_trainstop = multisurf.add_cross_network_trainstop
 
 local function on_load()

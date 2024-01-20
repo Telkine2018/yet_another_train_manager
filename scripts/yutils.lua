@@ -953,6 +953,8 @@ function yutils.add_cross_network_trainstop(from_network, position, records) end
 ---@param force boolean?
 function yutils.init_se(context, force) end
 
+function yutils.register_se() end
+
 ---@param train Train
 ---@return boolean
 function yutils.is_train_stuck(train)
@@ -1267,6 +1269,8 @@ local function on_load()
     if global.pattern_cache then
         PatternCache = global.pattern_cache
     end
+
+    yutils.register_se()
 end
 
 tools.on_load(on_load)
