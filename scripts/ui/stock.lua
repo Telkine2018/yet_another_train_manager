@@ -112,7 +112,7 @@ function uistock.update(player)
     if signal_filter then
         local name = signal_filter
         for _, device in pairs(devices) do
-            if device.dconfig and not device.dconfig.inactive and filter(device) then
+            if device.dconfig and not device.inactive and filter(device) then
                 local r = device.produced_items[name]
                 if r then
                     local count = r.provided - r.requested
@@ -147,7 +147,7 @@ function uistock.update(player)
 
     else
         for _, device in pairs(devices) do
-            if device.dconfig and not device.dconfig.inactive and filter(device) then
+            if device.dconfig and not device.inactive and filter(device) then
                 for name, r in pairs(device.produced_items) do
                     local count = r.provided - r.requested
                     if count > 0 then

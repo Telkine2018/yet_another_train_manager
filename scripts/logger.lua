@@ -409,6 +409,10 @@ end
 ---@param train Train
 function logger.report_teleportation(source_teleport, target_teleport, train)
 
+    if not config.teleport_report then
+        return
+    end
+    
     ---@type LogEvent
     local e = {
         force_id = source_teleport.force_id,
@@ -433,8 +437,8 @@ function logger.event_teleport_fail_to_text(e)
     return {
         prefix .. "-logger.teleport_failure",
         flib_format.time(e.time),
-        trainstop_to_text(e.target_teleport.trainstop),
         trainstop_to_text(e.source_teleport.trainstop),
+        trainstop_to_text(e.target_teleport.trainstop),
         gps_to_text(e.target_teleport.entity)
     }
 end

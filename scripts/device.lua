@@ -9,6 +9,7 @@ local allocator = require("scripts.allocator")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
 local logger = require("scripts.logger")
+local depotstats = require("scripts.depotstats")
 
 ------------------------------------------------------
 local device_manager = {}
@@ -51,6 +52,16 @@ local get_context = yutils.get_context
 
 local train_refresh_delay = 120
 local fuel_refresh_delay = 1200
+
+
+local create_count_signal = {
+    type = "virtual",
+    name = commons.prefix .. "-create_count"
+}
+local train_count_signal = {
+    type = "virtual",
+    name = commons.prefix .. "-train_count"
+}
 
 -----------------------------------------------------
 
@@ -275,6 +286,7 @@ local function new_device(entity, tags)
     if tags then
         dconfig = tags --[[@as DeviceConfig]]
         dconfig.inactive = config.inactive_on_copy
+        device.inactive = dconfig.inactive and 1 or nil
     elseif config_id > 0 then
         dconfig = context.configs[config_id]
         need_register = false
@@ -310,7 +322,6 @@ local rail_types = {
 
 ---@param entity LuaEntity
 local function clear_distance_cache(entity)
-
     local surfaces_to_clear = global.surfaces_to_clear
     if not surfaces_to_clear then
         surfaces_to_clear = {}
@@ -466,21 +477,6 @@ local wire_red = defines.wire_type.red
 local wire_green = defines.wire_type.green
 local circuit_input = defines.circuit_connector_id.combinator_input
 
----@type SignalID
-local mask_signal = { name = prefix .. "-network_mask", type = "virtual" }
-local builder_stop_create_signal = {
-    name = prefix .. "-builder_stop_create",
-    type = "virtual"
-}
-local builder_stop_remove_signal = {
-    name = prefix .. "-builder_stop_remove",
-    type = "virtual"
-}
-local builder_remove_destroy_signal = {
-    name = prefix .. "-builder_remove_destroy",
-    type = "virtual"
-}
-
 ---@param device Device
 local function connect_train_to_device(device)
     if device.role ~= depot_role and device.role ~= buffer_role then return end
@@ -606,6 +602,7 @@ local function process_device(device)
 
     local dconfig = device.dconfig
     role = dconfig.role
+    device.inactive = dconfig.inactive and 1 or nil
 
     -- no role
     if not used_roles[role] then
@@ -637,32 +634,39 @@ local function process_device(device)
 
     if device.network.disabled then return end
 
-    -- depot role
-    if role == depot_role then
-        device.network_mask = dconfig.network_mask or default_network_mask
-        device.priority = dconfig.priority or 0
-        if circuit then
-            ---@cast circuit -nil
-            local red_signals = circuit.signals
+    local function read_virtual_signals()
+        ---@cast circuit -nil
+        local red_signals = circuit.signals
 
-            if red_signals then
-                for _, signal_amount in ipairs(red_signals) do
-                    local signal = signal_amount.signal
-                    if signal.type == "virtual" then
-                        local v = virtual_to_internals[signal.name]
-                        if v then
-                            device[v] = signal_amount.count
-                        end
+        if red_signals then
+            for _, signal_amount in ipairs(red_signals) do
+                local signal = signal_amount.signal
+                if signal.type == "virtual" then
+                    local v = virtual_to_internals[signal.name]
+                    if v then
+                        device[v] = signal_amount.count
                     end
                 end
             end
         end
+    end
 
+    -- depot role
+    if role == depot_role then
+        device.network_mask = dconfig.network_mask or default_network_mask
+        device.priority = dconfig.priority or 0
+        device.parking_penalty = dconfig.parking_penalty
+        if circuit then
+            ---@cast circuit -nil
+            read_virtual_signals()
+        end
         if device.role ~= depot_role then
             yutils.add_depot(device)
             conf_changed = true
         end
-        if conf_changed then connect_train_to_device(device) end
+        if conf_changed then
+            connect_train_to_device(device)
+        end
 
         local train = device.train
         if train then
@@ -682,23 +686,42 @@ local function process_device(device)
             return
         end
 
+        device.network_mask = dconfig.network_mask or default_network_mask
+        device.priority = dconfig.priority or 0
+        device.rpriority = dconfig.rpriority or 0
         if device.conf_change then
-            device.network_mask = dconfig.network_mask or default_network_mask
-            device.priority = dconfig.priority or 0
-
             device.builder_pattern = dconfig.builder_pattern
             device.builder_gpattern = dconfig.builder_gpattern
             device.builder_fuel_item = dconfig.builder_fuel_item
-
+            device.no_remove_constraint = dconfig.no_remove_constraint
             device.conf_change = nil
             conf_changed = true
         end
 
         if circuit then
-            device.builder_create_stopped = circuit.get_signal(builder_stop_create_signal) ~= 0
-            device.builder_remove_stopped = circuit.get_signal(builder_stop_remove_signal) ~= 0
-            device.builder_overflow = circuit.get_signal(builder_remove_destroy_signal) ~= 0
+            device.builder_stop_create = nil
+            device.builder_stop_remove = nil
+            device.builder_remove_destroy = nil
+            read_virtual_signals()
         end
+
+        local create_count = allocator.get_create_count(device)
+
+        local stat = depotstats.get(device.network, device.builder_gpattern)
+
+        ---@type ConstantCombinatorParameters
+        local parameters = {
+            {
+                index = 1,
+                signal = create_count_signal,
+                count = create_count
+            }, {
+            index = 2,
+            signal = train_count_signal,
+            count = stat.used
+        }
+        }
+        yutils.set_device_output(device, parameters)
 
         if device.role ~= builder_role then
             yutils.add_builder(device)
@@ -969,7 +992,7 @@ local function process_device(device)
             device.station_locked = dconfig.station_locked
             device.max_load_time = dconfig.max_load_time
             if not device.train then
-                if not dconfig.inactive then
+                if not device.inactive then
                     local train = allocator.find_train(device, device.network_mask, device.patterns)
                     if not train then return end
                     yutils.unlink_train_from_depots(train.depot, train)
@@ -1034,23 +1057,7 @@ local function process_device(device)
 
         ---@cast circuit -nil
         if circuit then
-            local red_signals = circuit.signals
-
-            if red_signals then
-                for _, signal_amount in ipairs(red_signals) do
-                    local signal = signal_amount.signal
-                    local signal_type = signal.type
-                    local name = signal.name
-                    if name and signal_amount.count ~= 0 then
-                        if signal_type == "virtual" then
-                            local v = virtual_to_internals[name]
-                            if v then
-                                device[v] = signal_amount.count
-                            end
-                        end
-                    end
-                end
-            end
+            read_virtual_signals()
         end
     elseif role == teleporter_role then
         if device.role ~= teleporter_role then
@@ -1066,6 +1073,9 @@ local function process_device(device)
             }) --[[@as LuaEntity]]
         end
         device.teleport_range = dconfig.teleport_range or config.teleport_range
+        if circuit then
+            read_virtual_signals()
+        end
         if teleport.check_teleport(device) then
             yutils.set_device_image(device)
         end

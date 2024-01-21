@@ -25,8 +25,6 @@ local image_operations = {
     "+", "-", "*", "/", "%", "^", "<<", ">>", "AND", "OR", "XOR"
 }
 
-local is_debug = settings.startup["yaltn-debug"].value
-
 local provider_role = defs.device_roles.provider
 local requester_role = defs.device_roles.requester
 local buffer_role = defs.device_roles.buffer
@@ -110,6 +108,8 @@ local function on_configuration_changed(context)
         end
     end
     yutils.init_se(context)
+    global.debug_version = commons.debug_version
+    game.print {"yaltn-device.update-message"}
 end
 
 ---@return Context
@@ -119,7 +119,7 @@ function yutils.get_context()
     context = global.context --[[@as Context]]
     if context then
         yutils.load_pattern_cache()
-        if is_debug and not is_configuration_changed then
+        if not is_configuration_changed then
             on_configuration_changed(context)
         end
         return context
@@ -382,7 +382,7 @@ function yutils.add_request(request)
 
     if request.inqueue then return end
 
-    if device.dconfig.inactive then return end
+    if device.inactive then return end
 
     request.inqueue = true
     request.cancelled = false
@@ -753,7 +753,7 @@ function yutils.find_refueler(network, train)
 
             if not refueler.trainstop.connected_rail then goto skip end
 
-            if refueler.dconfig.inactive then goto skip end
+            if refueler.inactive then goto skip end
 
             table.insert(refueler_list, refueler)
             table.insert(goals, { train_stop = refueler.trainstop })
@@ -878,7 +878,7 @@ function yutils.set_device_image(device)
     local role = device.role
 
     if depot_roles[role] then
-        if device.dconfig.inactive then
+        if device.inactive then
             image_index = pink
         elseif device.train then
             image_index = blue
@@ -888,7 +888,7 @@ function yutils.set_device_image(device)
         goto setting
     end
 
-    if device.dconfig.inactive then
+    if device.inactive then
         image_index = pink
         goto setting
     end
@@ -953,10 +953,11 @@ function yutils.add_cross_network_trainstop(from_network, position, records) end
 ---@param force boolean?
 function yutils.init_se(context, force) end
 
+function yutils.register_se() end
+
 ---@param train Train
 ---@return boolean
 function yutils.is_train_stuck(train)
-    if not train.train.valid then return false end
     if not train.timeout_tick or not train.timeout_pos then return false end
 
     if not train.timeout_pos or train.timeout_tick >= GAMETICK then
@@ -1221,6 +1222,7 @@ function yutils.create_layout_strings(pattern)
 end
 
 function yutils.load_pattern_cache()
+    PatternCache = {}
     for _, d in pairs(devices_runtime.map) do
         local device = d --[[@as Device]]
         if device.dconfig.patterns then
@@ -1234,6 +1236,19 @@ function yutils.load_pattern_cache()
             end
         end
     end
+    global.pattern_cache = PatternCache
+end
+
+---@param device Device
+---@param parameters ConstantCombinatorParameters[]
+function yutils.set_device_output(device, parameters)
+    if not device.out_red.valid then return end
+
+    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+    cb.parameters = parameters
+
+    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+    cb.parameters = parameters
 end
 
 function yutils.update_runtime_config(device) end
@@ -1245,15 +1260,20 @@ function yutils.builder_compute_conf(builder) end
 local function on_load()
     devices_runtime = Runtime.get("Device")
     trains_runtime = Runtime.get("Trains")
+
     if context then
         context.trains = trains_runtime.map --[[@as table<integer, Train>]]
-    elseif not is_debug then
+    elseif global.debug_version == commons.debug_version then
         context = global.context
     end
+    if global.pattern_cache then
+        PatternCache = global.pattern_cache
+    end
+
+    yutils.register_se()
 end
 
 tools.on_load(on_load)
-
 tools.on_nth_tick(60 * 60, yutils.purge_config)
 
 logger.get_context = yutils.get_context

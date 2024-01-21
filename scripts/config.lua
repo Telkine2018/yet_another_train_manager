@@ -24,6 +24,7 @@ local config = {
     teleport_range = 300,
     teleport_threshold = 2,
     teleport_animation = true,
+    teleport_report = false,
     auto_ajust_delivery = true,
     
     show_train_mask = true,
@@ -44,6 +45,9 @@ local config = {
     fa_threshold_percent = 50.0,
 
     default_parking_penalty = 300,
+
+    teleport_timeout = 30 * 60,
+    teleport_min_distance = 90,
 
     use_combinator_for_request = false,
 }

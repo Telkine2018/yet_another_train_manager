@@ -18,8 +18,6 @@ local scheduler = {}
 local devices_runtime
 local devices
 
-local min_buffer_distance = 120
-
 local depot_role = defs.device_roles.depot
 local buffer_role = defs.device_roles.buffer
 local train_available_states = defs.train_available_states
@@ -33,7 +31,6 @@ local find_closest_incoming_rail = pathing.find_closest_incoming_rail
 local device_distance = pathing.device_distance
 local train_distance = pathing.train_distance
 
-local pattern_cache = PatternCache
 
 local function on_load()
     devices_runtime = Runtime.get("Device")
@@ -158,7 +155,7 @@ local function find_provider(request, forbidden, no_surface_change)
                 if device.patterns[pattern] then
                     goto match
                 end
-                local generic = pattern_cache[pattern]
+                local generic = PatternCache[pattern]
                 if generic and device.patterns[generic] then
                     goto match
                 end
@@ -166,7 +163,7 @@ local function find_provider(request, forbidden, no_surface_change)
             if not compatible then
                 if device.has_specific_pattern then
                     for pattern, _ in pairs(device.patterns) do
-                        local generic = pattern_cache[pattern]
+                        local generic = PatternCache[pattern]
                         if generic and production_device.patterns[generic] then
                             goto match
                         end
@@ -190,7 +187,7 @@ local function find_provider(request, forbidden, no_surface_change)
             return
         end
 
-        if production_device.dconfig.inactive then
+        if production_device.inactive then
             production_device.failcode = 56
             request.failcode = 56
             return
@@ -716,7 +713,7 @@ function scheduler.process_request(request)
 
     if device.network.disabled then return end
 
-    if device.dconfig.inactive then
+    if device.inactive then
         return
     end
 

@@ -54,6 +54,18 @@ local use_carry = {
     [defs.device_roles.feeder] = true
 }
 
+local has_priority = {
+
+    [defs.device_roles.provider] = true,
+    [defs.device_roles.requester] = true,
+    [defs.device_roles.provider_and_requester] = true,
+    [defs.device_roles.buffer] = true,
+    [defs.device_roles.feeder] = true,
+    [defs.device_roles.depot] = true,
+    [defs.device_roles.builder] = true,
+}
+
+
 ---@param parent LuaGuiElement
 local function create_line(parent)
     local line = parent.add { type = "line" }
@@ -122,11 +134,15 @@ local function create_fields(ftable, device)
     ---@param name string
     ---@param active boolean
     ---@param tooltip string?
-    local function add_numeric_field(name, active, tooltip)
+    ---@param allow_negative boolean?
+    local function add_numeric_field(name, active, tooltip, allow_negative)
         if not active then return end
 
         if not tooltip then
             tooltip = ""
+        end
+        if not allow_negative then
+            allow_negative = false
         end
         local value = dconfig[name]
         local svalue
@@ -137,6 +153,7 @@ local function create_fields(ftable, device)
             name = name,
             numeric = true,
             text = svalue,
+            allow_negative = true,
             clear_and_focus_on_right_click = true,
             tooltip = { tooltip }
         }
@@ -205,19 +222,21 @@ local function create_fields(ftable, device)
 
     create_mask("network_mask", use_all_enable[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
 
-    add_numeric_field("priority", use_carry[role])
+    add_numeric_field("priority", has_priority[role], nil, true)
+    add_numeric_field("rpriority", role == defs.device_roles.builder, nil, true)
     add_numeric_field("max_delivery", use_carry[role])
     add_numeric_field("delivery_timeout", use_requester[role] or role == defs.device_roles.feeder)
     add_numeric_field("threshold", use_requester[role])
     add_numeric_field("locked_slots", use_provider_not_buffer[role])
     add_numeric_field("inactivity_delay", use_carry[role], np("inactivity_delay.tooltip"))
     add_numeric_field("max_load_time", role == defs.device_roles.feeder, np("max_load_time.tooltip"))
-    add_numeric_field("delivery_penalty", use_provider_not_buffer[role])
-    add_numeric_field("teleport_range", role == defs.device_roles.teleporter)
-    add_numeric_field("parking_penalty", role == defs.device_roles.depot, np("parking_penalty.tooltip"))
+    add_numeric_field("delivery_penalty", use_provider_not_buffer[role], nil, true)
+    add_numeric_field("teleport_range", role == defs.device_roles.teleporter, nil, false)
+    add_numeric_field("parking_penalty", role == defs.device_roles.depot, np("parking_penalty.tooltip"), true)
 
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
+    add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
     if not is_builder then
@@ -901,6 +920,7 @@ local function update_runtime_config(device, player)
     local dconfig = device.dconfig
     device.patterns = dconfig.patterns or device.scanned_patterns
     device.has_specific_pattern = dconfig.has_specific_pattern
+    device.inactive = dconfig.inactive and 1 or nil
 
     device.conf_change = true
     if not device.dconfig.requests then
@@ -1058,6 +1078,7 @@ local function save_values(player)
     end
 
     save_number("priority")
+    save_number("rpriority")
     save_number("max_delivery", 0, 100)
     save_number("delivery_timeout", 1, nil)
     save_number("threshold", 1, nil)
@@ -1068,8 +1089,9 @@ local function save_values(player)
     save_number("teleport_range", 60, nil)
     save_number("parking_penalty", nil, nil)
 
-    save_boolean("combined")
     save_boolean("station_locked")
+    save_boolean("combined")
+    save_boolean("no_remove_constraint")
 
     save_mask("network_mask", dconfig)
     save_item("builder_fuel_item")

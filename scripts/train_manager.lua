@@ -221,7 +221,9 @@ local function find_depot_and_route(network, train, device)
         return nil
     end
 
-    yutils.set_train_composition(train, depot)
+    if depot.role ~= builder_role then
+        yutils.set_train_composition(train, depot)
+    end
     allocator.route_to_station(train, depot)
     yutils.link_train_to_depot(depot, train)
     return depot
@@ -713,7 +715,13 @@ local is_train_stuck = yutils.is_train_stuck
 
 ---@param train Train
 local function process_trains(train)
-    if is_train_stuck(train) then logger.report_train_stuck(train) end
+    if train.train.valid then
+        if is_train_stuck(train) then 
+            logger.report_train_stuck(train) 
+        end
+    else
+        yutils.remove_train(train)
+    end
 end
 
 local function on_load() trains_runtime = Runtime.get("Trains") end

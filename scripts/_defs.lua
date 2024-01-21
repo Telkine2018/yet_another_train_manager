@@ -36,9 +36,9 @@ local prefix = commons.prefix
 ---@field builder_area BoundingBox
 ---@field builder_entry MapPosition
 ---@field conf_change boolean?
----@field builder_create_stopped boolean?
----@field builder_remove_stopped boolean?
----@field builder_overflow boolean?
+---@field builder_stop_create integer?
+---@field builder_stop_remove integer?
+---@field builder_remove_destroy integer?
 ---@field builder_create_count integer?
 ---@field builder_remove_count integer?
 ---@field builder_parts {[string]:integer}
@@ -55,7 +55,7 @@ local prefix = commons.prefix
 ---@field output_delivery_content boolean ?
 ---@field scanned_patterns {[string]:boolean}
 ---@field distance_cache {[integer]:number}
----@field parking_penalty integer?
+---@field inactive integer?
 
 ---@class BuilderConfig
 ---@field builder_locomotive_item string
@@ -64,6 +64,8 @@ local prefix = commons.prefix
 ---@field builder_fuel_item string
 ---@field builder_pattern string
 ---@field builder_gpattern string
+---@field rpriority integer?                                @ Dismantling priority
+---@field no_remove_constraint boolean?                     @ Dismantling priority
 
 ---@class BaseDeviceConfig : TrainComposition, BuilderConfig
 ---@field id integer                                        @ id config
@@ -79,14 +81,15 @@ local prefix = commons.prefix
 ---@field delivery_penalty integer?                         @ Distance penalty for each penalty
 ---@field station_locked boolean?                           @ Locked to station
 ---@field teleport_range integer?                           @ teleporter range
----@field inactive boolean?                                 @ Device is not active
 ---@field combined boolean?                                 @ Combined request
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
+---@field parking_penalty integer?
 
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
 ---@field remove_tick integer
+---@field inactive boolean?                                 @ Device is not active
 
 ---@class RequestConfig
 ---@field name string
@@ -128,6 +131,12 @@ local prefix = commons.prefix
 ---@field is_orbit boolean
 ---@field teleporters table<integer, Device>
 ---@field production_indexes table<string, ProductionIndex[]>   @ not used
+---@field depotstats table<string, DepotStat>
+---@field depotstats_tick integer
+
+---@class DepotStat
+---@field free integer
+---@field used integer
 
 ---@class ProductionIndex
 ---@field priority integer
@@ -375,7 +384,14 @@ def.virtual_to_internals = {
     [prefix .. "-threshold"] = "threshold",
     [prefix .. "-locked_slots"] = "locked_slots",
     [prefix .. "-inactivity_delay"] = "inactivity_delay",
-    [prefix .. "-delivery_penalty"] = "delivery_penalty"
+    [prefix .. "-delivery_penalty"] = "delivery_penalty",
+
+    [prefix .. "-builder_stop_create"] = "builder_stop_create",
+    [prefix .. "-builder_stop_remove"] = "builder_stop_remove",
+    [prefix .. "-builder_remove_destroy"] = "builder_remove_destroy",
+
+    [prefix .. "-inactive"] = "inactive"
+
 
 }
 

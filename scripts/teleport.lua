@@ -1,4 +1,3 @@
-
 local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local defs = require("scripts._defs")
@@ -43,14 +42,14 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
     if not network.teleporters then return end
 
     local dd = distance(start_pos, target_pos)
-    if dd < 90 then return end
+    if dd < config.teleport_min_distance then return end
 
     local min_d1
     local min_tlp1
     local min_d2
     local min_tlp2
     for _, tlp in pairs(network.teleporters) do
-        if not tlp.dconfig.inactive and tlp.trainstop and tlp.trainstop.valid then
+        if not tlp.inactive and tlp.trainstop and tlp.trainstop.valid then
             local d1 = distance(tlp.position, start_pos)
             if d1 < tlp.teleport_range then
                 if not min_d1 or min_d1 > d1 then
@@ -79,9 +78,7 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
     if not (connected_rail and connected_rail.valid) then return end
 
     local rail_direction = trainstop.connected_rail_direction
-    local rev_rail_direction =
-        rail_direction == defines.rail_direction.front and
-        defines.rail_direction.back or defines.rail_direction.front
+    local rev_rail_direction = rail_direction == defines.rail_direction.front and defines.rail_direction.back or defines.rail_direction.front
 
     ---@type LuaEntity?
     local rail = connected_rail.get_rail_segment_end(rev_rail_direction)
@@ -117,13 +114,9 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
         station = trainstop.backer_name,
         wait_conditions = {
             {
-                type = "circuit",
+                type = "time",
                 compare_type = "and",
-                condition = {
-                    comparator = ">",
-                    first_signal = { type = "virtual", name = "signal-Q" },
-                    constant = 0
-                }
+                tick = config.teleport_timeout
             }
         }
     })
@@ -153,8 +146,13 @@ end
 ---@return TeleportInfo?
 ---@return boolean?
 local function get_teleport_info(device)
+
+    device.failcode = nil
     local src_trainstop = device.trainstop
-    if not (src_trainstop and src_trainstop.valid) then return nil, false end
+    if not (src_trainstop and src_trainstop.valid) then 
+        device.failcode = 200
+        return nil, false 
+    end
 
     local ttrain = src_trainstop.get_stopped_train();
     if ttrain == nil then return nil, false end
@@ -166,60 +164,74 @@ local function get_teleport_info(device)
     if not device.ebuffer then return nil, true end
 
     if device.ebuffer.energy < commons.teleport_electric_buffer_size then
+        device.failcode = 201
         return nil, true
     end
 
     local schedule = ttrain.schedule
     local r = schedule.records[schedule.current + 1]
     local connected_rail = r.rail
-    if not connected_rail then return nil, true end
+    if not connected_rail then 
+        device.failcode = 202
+        return nil, true 
+    end
 
-    local dst_trainstop = connected_rail.get_rail_segment_entity(
-        r.rail_direction, false)
-    if not dst_trainstop then return nil, true end
+    local dst_trainstop = connected_rail.get_rail_segment_entity(r.rail_direction, false)
+    if not dst_trainstop then 
+        device.failcode = 203
+        return nil, true 
+    end
+
 
     local rail_direction = dst_trainstop.connected_rail_direction
-    local rev_rail_direction =
-        rail_direction == defines.rail_direction.front and
-        defines.rail_direction.back or defines.rail_direction.front
-
-    local rail = connected_rail.get_rail_segment_end(rev_rail_direction)
-    if not rail then return nil, true end
+    local rev_rail_direction = rail_direction == defines.rail_direction.front and defines.rail_direction.back or defines.rail_direction.front
+    local rail = dst_trainstop.connected_rail
+    local end_rail = rail.get_rail_segment_end(rev_rail_direction)
+    local rail_len = math.ceil(
+        math.max(
+            math.abs(rail.position.x - end_rail.position.x),
+            math.abs(rail.position.y - end_rail.position.y)))
 
     local pos1 = connected_rail.position
-    local pos2 = rail.position
-
     local x1, x2, y1, y2
     local xd, yd = 0, 0
     local margin = 7
-    if (math.abs(pos1.y - pos2.y) < 1) then
-        if pos1.x < pos2.x then
-            x1 = pos1.x - margin
-            x2 = pos2.x + margin
-            xd = 1
-        else
-            xd = -1
-            x1 = pos2.x - margin
-            x2 = pos1.x + margin
-        end
+
+    local direction = dst_trainstop.direction
+    if direction == defines.direction.east then
+        xd = -1
+        x1 = pos1.x - rail_len - margin
+        x2 = pos1.x + margin
         y1 = pos1.y - 1
         y2 = pos1.y + 1
-    else
-        if pos1.y < pos2.y then
-            y1 = pos1.y - margin
-            y2 = pos2.y + margin
-            yd = 1
-        else
-            yd = -1
-            y1 = pos2.y - margin
-            y2 = pos1.y + margin
-        end
+    elseif direction == defines.direction.west then
+        xd = 1
+        x1 = pos1.x - margin
+        x2 = pos1.x + rail_len + margin
+        y1 = pos1.y - 1
+        y2 = pos1.y + 1
+    elseif direction == defines.direction.north then
+        yd = 1
+        y1 = pos1.y - margin
+        y2 = pos1.y + rail_len + margin
+        x1 = pos1.x - 1
+        x2 = pos1.x + 1
+    elseif direction == defines.direction.south then
+        yd = -1
+        y1 = pos1.y - rail_len - margin
+        y2 = pos1.y + margin
         x1 = pos1.x - 1
         x2 = pos1.x + 1
     end
 
     local dst_device = context.trainstop_map[dst_trainstop.unit_number]
-    if not dst_device then return nil, true end
+    if not dst_device then 
+        device.failcode = 205
+        return nil, true 
+    end
+
+    device.teleport_last_dst = dst_device
+    dst_device.teleport_last_src = device
 
     local dst_train = dst_trainstop.get_stopped_train();
     if dst_train then
@@ -243,10 +255,20 @@ local function get_teleport_info(device)
         area = { { x1, y1 }, { x2, y2 } }
     }
 
-    if count > 0 then return nil, true end
+    rendering.draw_rectangle {
+        color = { 1, 0, 0 },
+        surface = dst_trainstop.surface,
+        forces = { dst_trainstop.force_index },
+        time_to_live = 120,
+        left_top = { x1, y1 },
+        right_bottom = { x2, y2 }
+    }
 
-    device.teleport_last_dst = dst_device
-    dst_device.teleport_last_src = device
+    if count > 0 then 
+        device.failcode = 204
+        return nil, true 
+    end
+
     return {
 
         device = device,
@@ -350,8 +372,7 @@ local function do_teleport(info)
 
         if not created then
             for _, c in pairs(create_list) do c.destroy() end
-            info.dst_device.teleport_failure =
-                (info.dst_device.teleport_failure or 0) + 1
+            info.dst_device.teleport_failure = (info.dst_device.teleport_failure or 0) + 1
             logger.report_teleport_fail(info.device, info.dst_device, info.train)
             failure = true
             train.teleporting = false
@@ -424,6 +445,7 @@ local function do_teleport(info)
         end
         x = x + 7 * xd
         y = y + 7 * yd
+        index = index + 1
     end
     device.teleport_ecount = (device.teleport_ecount or 0) + 1
     info.dst_device.teleport_rcount = (info.dst_device.teleport_rcount or 0) + 1
@@ -457,7 +479,7 @@ local function collect_players_trains(infolist)
         local e = player.opened
         if e and e.object_name == "LuaEntity" and defs.tracked_types[e.type] then
             local train = e.train
-            if train and map[train.id] then
+            if train and train.valid and map[train.id] then
                 if not result then result = {} end
                 result[player.index] = map[train.id]
             end
@@ -471,7 +493,9 @@ local function restore_player_trains(map)
     if not map then return end
 
     for index, train in pairs(map) do
-        game.players[index].opened = train.train.front_stock
+        if train.train.valid then
+            game.players[index].opened = train.train.front_stock
+        end
     end
 end
 
@@ -513,6 +537,7 @@ end
 ---@return boolean
 function teleport.check_teleport(device)
     local infomap
+    ---@type TeleportInfo[]
     local infolist
     local context
 
@@ -551,10 +576,13 @@ function teleport.check_teleport(device)
                     end
                 end
                 if not failure then
-                    teleport.apply_teleportation(ti)
-                    restore_player_trains(player_map)
+                    if teleport.apply_teleportation(ti) then
+                        yutils.remove_train(ti.train)
+                    else
+                        restore_player_trains(player_map)
+                    end
                 else
-                    yutils.remove_train(ti.train, true)
+                    yutils.remove_train(ti.train)
                 end
                 return true
             end
@@ -698,11 +726,8 @@ function teleport.apply_teleportation(ti)
         if not created then
             for _, c in pairs(create_list) do c.destroy() end
             failure = true
-            ti.info.dst_device.teleport_failure = (ti.info.dst_device
-                    .teleport_failure or 0) +
-                1
-            logger.report_teleport_fail(ti.info.device, ti.info.dst_device,
-                ti.info.train)
+            ti.info.dst_device.teleport_failure = (ti.info.dst_device.teleport_failure or 0) + 1
+            logger.report_teleport_fail(ti.info.device, ti.info.dst_device, ti.info.train)
             break
         end
         if ti.passenger then created.set_driver(ti.passenger) end
@@ -718,8 +743,7 @@ function teleport.apply_teleportation(ti)
             local dst_burner = created.burner
             if dst_burner then
                 dst_burner.currently_burning = carriage.currently_burning
-                dst_burner.remaining_burning_fuel =
-                    carriage.remaining_burning_fuel
+                dst_burner.remaining_burning_fuel = carriage.remaining_burning_fuel
                 dst_burner.heat = carriage.heat
             end
         elseif type == "cargo-wagon" then
@@ -778,8 +802,7 @@ function teleport.apply_teleportation(ti)
     end
 
     ti.info.device.teleport_ecount = (ti.info.device.teleport_ecount or 0) + 1
-    ti.info.dst_device.teleport_rcount =
-        (ti.info.dst_device.teleport_rcount or 0) + 1
+    ti.info.dst_device.teleport_rcount = (ti.info.dst_device.teleport_rcount or 0) + 1
 
     local schedule = ti.schedule
     schedule.current = schedule.current + 2

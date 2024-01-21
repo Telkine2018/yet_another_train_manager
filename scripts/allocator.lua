@@ -17,9 +17,6 @@ local distance2 = tools.distance2
 local builder_penalty = 90
 
 ---@type Runtime
-local devices_runtime
-
----@type Runtime
 local trains_runtime
 
 local depot_role = defs.device_roles.depot
@@ -31,6 +28,7 @@ local feeder_role = defs.device_roles.feeder
 local function get_create_count(depot)
     return (depot.create_count or 0) - (depot.trains and table_size(depot.trains) or 0)
 end
+allocator.get_create_count = get_create_count
 
 ---@param network SurfaceNetwork
 ---@param train Train
@@ -60,22 +58,24 @@ function allocator.find_free_depot(network, train, device, is_parking)
             return false
         end
 
-        if depot.builder_remove_stopped then
+        if depot.builder_stop_remove then
             depot.failcode = 68
             return false
         end
 
-        if depot.dconfig.inactive then
+        if depot.inactive then
             depot.failcode = 69
             return false
         end
 
         if depot.role == defs.device_roles.builder then
             if is_parking then return false end
-            local create_count = (depot.create_count or 0) - (depot.trains and table_size(depot.trains) or 0)
-            if create_count <= 0 then
-                depot.failcode = 70
-                return false
+            if not depot.no_remove_constraint then
+                local create_count = (depot.create_count or 0) - (depot.trains and table_size(depot.trains) or 0)
+                if create_count <= 0 then
+                    depot.failcode = 70
+                    return false
+                end
             end
         end
         return true
@@ -99,32 +99,56 @@ function allocator.find_free_depot(network, train, device, is_parking)
                     goto skip
                 end
 
+                local depot_priority
                 if depot.role == builder_role then
                     d = d + builder_penalty
-                end
 
-                if depot.parking_penalty then
-                    if is_parking then
-                        d = d - depot.parking_penalty
-                    else
-                        d = d + depot.parking_penalty
+                    depot_priority = depot.rpriority or 0
+                    if min_priority then
+                        if min_priority > depot_priority then
+                            depot.failcode = 61
+                            goto skip
+                        elseif min_priority == depot_priority and d > min_d then
+                            depot.failcode = 62
+                            goto skip
+                        end
                     end
-                end
+                else
+                    if depot.parking_penalty then
+                        if is_parking then
+                            d = d - depot.parking_penalty
+                            if d < 0 then
+                                d = 0
+                            end
+                        else
+                            d = d + depot.parking_penalty
+                        end
+                    end
 
-                if min_priority then
-                    if min_priority > depot.priority then
-                        depot.failcode = 61
-                        goto skip
-                    elseif min_priority == depot.priority and d > min_d then
-                        depot.failcode = 62
-                        goto skip
+                    depot_priority = 0
+                    if not is_parking then
+                        depot_priority = depot.priority
+                        if min_priority then
+                            if min_priority > depot_priority then
+                                depot.failcode = 61
+                                goto skip
+                            elseif min_priority == depot_priority and d > min_d then
+                                depot.failcode = 62
+                                goto skip
+                            end
+                        end
+                    else
+                        if min_d and d > min_d then
+                            depot.failcode = 62
+                            goto skip
+                        end
                     end
                 end
 
                 if check_depot(depot) then
                     min_depot = depot
                     min_d = d
-                    min_priority = depot.priority
+                    min_priority = depot_priority
                 end
             end
             ::skip::
@@ -222,6 +246,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
     local network = device.network
 
     local min_dist
+    local min_priority
     local min_train
     local min_builder
 
@@ -272,7 +297,8 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
-                if min_dist and d > min_dist then
+                if min_dist and
+                    (min_priority > candidate.priority or (d > min_dist and min_priority == candidate.priority)) then
                     candidate.failcode = 20
                     goto skip
                 end
@@ -296,7 +322,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
-                if candidate.dconfig.inactive then
+                if candidate.inactive then
                     candidate.failcode = 27
                     goto skip
                 end
@@ -318,6 +344,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                 end
 
                 min_dist = d
+                min_priority = candidate.priority
                 min_train = train
                 min_builder = nil
                 return true
@@ -337,7 +364,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
             end
         end
 
-        if builder.builder_create_stopped then
+        if builder.builder_stop_create then
             builder.failcode = 30
             goto skip_builder
         end
@@ -357,7 +384,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         end
         d = d + builder_penalty
 
-        if min_dist and d > min_dist then
+        if min_dist and (builder.priority < min_priority or (d > min_dist and min_priority == builder.priority)) then
             builder.failcode = 31
             goto skip_builder
         end
@@ -379,7 +406,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
             goto skip_builder
         end
 
-        if builder.dconfig.inactive then
+        if builder.inactive then
             builder.failcode = 36
             goto skip_builder
         end
@@ -403,6 +430,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         min_dist = d
         min_builder = builder
         min_train = nil
+        min_priority = builder.priority
         ::skip_builder::
     end
 
@@ -760,7 +788,7 @@ function allocator.builder_delete_train(train, builder)
         carriage.destroy { raise_destroy = true }
     end
 
-    if not builder.builder_overflow then
+    if not builder.builder_remove_destroy then
         -- put in container
         local container = get_builder_container(builder)
         if container then
@@ -952,7 +980,6 @@ function allocator.route_to_station(train, device)
 end
 
 local function on_load()
-    devices_runtime = Runtime.get("Device")
     trains_runtime = Runtime.get("Trains")
 end
 tools.on_load(on_load)
