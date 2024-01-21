@@ -84,7 +84,7 @@ local function cmd_trains(p)
                     (train.delivery and logger.delivery_to_text(train.delivery) or "*")
                 })
             end
-        else
+        elseif not train.teleporting then
             player.print({
                 prefix .. "-logger.train_invalid",
                 flib_format.time(train.timeout_tick),
@@ -220,11 +220,15 @@ local function cmd_list_manual(p)
 
     local count = 0
     local force = player.force
+    local context = yutils.get_context()
     for _, surface in pairs(game.surfaces) do
         for _, train in pairs(surface.get_trains(force)) do
             if train.front_stock.force == force and train.manual_mode then
-                player.print({ "", "TRAIN=", logger.gps_to_text(train.front_stock) })
-                count = count + 1
+                local mtrain = context.trains[train.id]
+                if not(mtrain and mtrain.teleporting) then
+                    player.print({ "", "TRAIN=", logger.gps_to_text(train.front_stock) })
+                    count = count + 1
+                end
             end
         end
     end

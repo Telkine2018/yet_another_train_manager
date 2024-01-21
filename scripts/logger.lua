@@ -409,6 +409,10 @@ end
 ---@param train Train
 function logger.report_teleportation(source_teleport, target_teleport, train)
 
+    if not config.teleport_report then
+        return
+    end
+    
     ---@type LogEvent
     local e = {
         force_id = source_teleport.force_id,

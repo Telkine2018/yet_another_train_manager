@@ -122,6 +122,13 @@ data:extend({
         default_value = 90
     },
     {
+        type = "bool-setting",
+        name = "yaltn-teleport_report",
+		setting_type = "runtime-global",
+        order="aq",
+        default_value = false
+    },
+    {
         type = "int-setting",
         name = "yaltn-ui_wagon_slots",
 		setting_type = "runtime-global",
