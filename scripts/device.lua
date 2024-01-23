@@ -1076,6 +1076,32 @@ local function process_device(device)
         if circuit then
             read_virtual_signals()
         end
+        local trains = device.trainstop.get_train_stop_trains()
+        local count = 0
+        local name = device.trainstop.backer_name
+        for _, train in pairs(trains) do
+            local schedule = train.schedule
+            local current = schedule.current
+            local index = 1
+            for _, r in pairs(schedule.records) do
+                if r.station == name then
+                    if index >= current then
+                        count = count + 1
+                    end
+                    break
+                end
+                index = index + 1
+            end
+        end
+        local parameters = {
+            {
+                index = 1,
+                signal = train_count_signal,
+                count = count
+            }
+        }
+        yutils.set_device_output(device, parameters)
+
         if teleport.check_teleport(device) then
             yutils.set_device_image(device)
         end
