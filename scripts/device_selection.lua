@@ -52,6 +52,7 @@ local function remove_teleport_range(player)
     return found
 end
 
+
 ---@param player LuaPlayer
 ---@param device Device
 local function show_teleport_range(player, device)
@@ -98,6 +99,17 @@ local function show_teleporters(player)
 end
 device_selection.show_teleporters = show_teleporters
 
+local flow_name = commons.prefix .. ".selection_flow"
+
+---@param player LuaPlayer
+---@return LuaGuiElement
+local function get_flow(player)
+    local flow = player.gui.left[flow_name]
+    if flow then return flow end
+    flow = player.gui.left.add { type = "frame", direction = "vertical", name = flow_name }
+    return flow
+end
+
 ---@param player LuaPlayer
 ---@param entity LuaEntity
 local function show_selected(player, entity)
@@ -113,6 +125,11 @@ local function show_selected(player, entity)
             rendering.destroy(id)
         end
         vars.selected_device_text_ids = nil
+    end
+
+    local flow = player.gui.left[flow_name]
+    if flow then
+        flow.destroy()
     end
 
     if not entity or entity.name ~= commons.device_name or not entity.valid then
@@ -254,6 +271,24 @@ local function show_selected(player, entity)
             end
             if (device.teleport_last_dst and device.teleport_last_dst.trainstop.valid) then
                 draw_text(" >> " .. device.teleport_last_dst.trainstop.backer_name)
+
+                local flow = get_flow(player)
+                local entity = device.teleport_last_dst.trainstop
+                local pos = entity.position
+                local direction = entity.direction
+                local offset = 5
+                if direction == defines.direction.north then
+                    pos.y = pos.y - offset
+                elseif direction == defines.direction.south then
+                    pos.y = pos.y + offset
+                elseif direction == defines.direction.west then
+                    pos.x = pos.x + offset
+                elseif direction == defines.direction.east then
+                    pos.x = pos.x - offset
+                end
+                local camera = flow.add { type = "camera", position = pos, surface = entity.surface_index }
+                camera.style.size = 300
+                camera.zoom = 0.2
             end
             if device.failcode and device.failcode >= 200 and device.failcode <= 300 then
                 draw_text { "yaltn-teleport.m" .. device.failcode }
