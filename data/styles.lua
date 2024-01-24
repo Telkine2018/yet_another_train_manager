@@ -157,7 +157,6 @@ styles.yatm_selected_label = {
     type = "label_style",
     parent = "yatm_clickable_semibold_label",
     font_color = selected_label_color
-
 }
 
 styles.yatm_default_table = {
@@ -187,7 +186,20 @@ styles.yatm_minimap_label = {
     right_padding = 4
 }
 
+styles.yatm_distance_label = {
+    type = "label_style",
+    font = "default-game",
+    height = 20,
+    width = 250,
+    font_color = {0,1,1},
+    right_padding = 4,
+    vertical_align = "top",
+    horizontal_align = "left",
+}
+
 styles.yatm_semibold_label = { type = "label_style", font = "default-semibold" }
+
+
 
 for _, suffix in ipairs({ "default", "red", "green", "blue" }) do
     styles["yatm_small_slot_button_" .. suffix] = {

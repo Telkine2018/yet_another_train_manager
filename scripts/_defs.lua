@@ -20,7 +20,7 @@ local prefix = commons.prefix
 ---@field produced_items table<string, Request>             @ Provided items (round to threshholds)
 ---@field train Train                                       @ current train in/tp depot
 ---@field trains table<int, Train>                          @ trains that target depot
----@field deliveries table<int, Delivery>                   @ indexed by train id
+---@field deliveries {[int]:Delivery}                   @ indexed by train id
 ---@field image_index integer
 ---@field scanned_cargo_mask integer?
 ---@field scanned_fluid_mask integer?

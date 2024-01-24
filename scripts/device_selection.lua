@@ -1,3 +1,4 @@
+local flib_format = require("__flib__/format")
 local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local defs = require("scripts._defs")
@@ -5,6 +6,7 @@ local Runtime = require("scripts.runtime")
 local yutils = require("scripts.yutils")
 local allocator = require("scripts.allocator")
 local trainconf = require("scripts.trainconf")
+local pathing = require("scripts.pathing")
 
 local device_selection = {}
 
@@ -200,6 +202,7 @@ local function show_selected(player, entity)
         if next(device.deliveries) then
             color = { 1, 1, 0, 1 }
             for _, delivery in pairs(device.deliveries) do
+                local d = delivery
                 while delivery do
                     for name, amount in pairs(delivery.content) do
                         local text
@@ -222,6 +225,39 @@ local function show_selected(player, entity)
                     end
                     delivery = delivery.combined_delivery
                 end
+                if d.train and d.train.front_stock.valid then
+                    local flow = get_flow(player)
+
+                    local distance = pathing.train_distance(d.train, device)
+                    local pos = d.train.front_stock.position
+                    local camera = flow.add { type = "camera", position = pos, surface = entity.surface_index }
+                    camera.style.size = 300
+                    camera.zoom = 0.2
+                    camera.entity = d.train.front_stock
+
+                    local label_flow = camera.add { type = "flow", direction = "vertical" }
+                    local fdistance = label_flow.add { type = "label", caption = string.format("%0.1f", distance) .. " m" }
+                    fdistance.style = "yatm_distance_label"
+
+                    local duration = game.tick - d.start_tick
+                    local fduration = label_flow.add { type = "label", caption = flib_format.time(duration) }
+                    fduration.style = "yatm_distance_label"
+
+                    local schedule = d.train.train.schedule
+                    local current = schedule.current
+                    local records = schedule.records
+                    local station
+                    for index = current, #records do
+                        station = records[index].station
+                        if station then
+                            break
+                        end
+                    end
+                    if station then
+                        local fstation = label_flow.add { type = "label", caption = "-> " .. station }
+                        fstation.style = "yatm_distance_label"
+                    end
+                end
             end
             ::end_deliveries::
         end
@@ -242,8 +278,6 @@ local function show_selected(player, entity)
                         table.insert(text, "")
                     end
                     draw_text(text)
-
-
                     if text_line > max_line then break end
                 end
             end
