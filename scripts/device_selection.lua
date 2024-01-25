@@ -225,7 +225,7 @@ local function show_selected(player, entity)
                     end
                     delivery = delivery.combined_delivery
                 end
-                if d.train and d.train.front_stock.valid then
+                if d.train and d.train.front_stock.valid and not d.train.teleporting then
                     local flow = get_flow(player)
 
                     local distance = pathing.train_distance(d.train, device)
@@ -236,7 +236,15 @@ local function show_selected(player, entity)
                     camera.entity = d.train.front_stock
 
                     local label_flow = camera.add { type = "flow", direction = "vertical" }
-                    local fdistance = label_flow.add { type = "label", caption = string.format("%0.1f", distance) .. " m" }
+                    local label_value
+
+                    if distance > 0 then
+                        label_value = string.format("%0.1f", distance) .. " m"
+                    else
+                        label_value = "N/A"
+                    end
+
+                    local fdistance = label_flow.add { type = "label", caption =  label_value}
                     fdistance.style = "yatm_distance_label"
 
                     local duration = game.tick - d.start_tick
