@@ -1,6 +1,8 @@
 local commons = require("scripts.commons")
 local data_util = require("__flib__.data-util")
 
+local default_font_color = {1, 1, 1}
+
 local empty_checkmark = {
     filename = data_util.empty_image,
     priority = "very-low",
@@ -133,6 +135,9 @@ styles.yatm_table_row_frame_dark = {
     parent = "yatm_table_row_frame_light",
     graphical_set = {}
 }
+
+local default_orange_color = {r = 0.98, g = 0.66, b = 0.22}
+
 
 local hovered_label_color = {
     r = 0.5 * (1 + default_orange_color.r),
