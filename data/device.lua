@@ -107,8 +107,7 @@ data:extend{
 		name = commons.device_name,
 		enabled = false,
 		ingredients = {
-			{'electronic-circuit', 10},
-			{'advanced-circuit', 5} 
+			{'electronic-circuit', 20}
 			},
 		result = commons.device_name
 	},
