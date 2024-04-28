@@ -44,8 +44,12 @@ local get_context = yutils.get_context
 ---@param r1 Request
 ---@param r2 Request
 local function request_compare(r1, r2)
-    if r1.device.priority ~= r2.device.priority then
-        return r1.device.priority > r2.device.priority
+    local d1 = r1.device
+    local p1 = (d1.priority_map and d1.priority_map[r1.name]) or d1.priority
+    local d2 = r2.device
+    local p2 = (d2.priority_map and d2.priority_map[r2.name]) or d2.priority
+    if p1 ~= p2 then
+        return p1 > p2
     end
     return r1.create_tick < r2.create_tick
 end
@@ -57,6 +61,7 @@ end
 ---@return NetworkConnection?
 local function find_provider(request, forbidden, no_surface_change)
     local candidate
+    local candidate_priority
     local candidate_dist
     local device = request.device
     local device_role = device.role
@@ -69,13 +74,16 @@ local function find_provider(request, forbidden, no_surface_change)
         local production_device = production.device
 
         if candidate then
+            local pdevice = production.device
+            local production_priority = (pdevice.priority_map and pdevice.priority_map[production.name]) or pdevice.priority
+
             if dist > candidate_dist then
-                if candidate.priority >= production.device.priority then
+                if candidate_priority >= production_priority then
                     production_device.failcode = 40
                     return
                 end
             else
-                if candidate.priority > production.device.priority then
+                if candidate_priority > production_priority then
                     production_device.failcode = 40
                     return
                 end
@@ -108,14 +116,16 @@ local function find_provider(request, forbidden, no_surface_change)
                 if dist < 0 then return end
 
                 if candidate then
+                    local pdevice = production.device
+                    local production_priority = (pdevice.priority_map and pdevice.priority_map[production.name]) or pdevice.priority
                     if dist > candidate_dist then
-                        if candidate.priority >= production.device.priority then
-                            production_device.failcode = 46
+                        if candidate_priority >= production_priority then
+                            pdevice.failcode = 46
                             return
                         end
                     else
-                        if candidate.priority > production.device.priority then
-                            production_device.failcode = 46
+                        if candidate_priority > production_priority then
+                            pdevice.failcode = 46
                             return
                         end
                     end
@@ -199,6 +209,8 @@ local function find_provider(request, forbidden, no_surface_change)
 
         candidate = production
         candidate_dist = dist
+        local dev = production.device
+        candidate_priority = (dev.priority_map and dev.priority_map[production.name]) or dev.priority
         return true
     end
 

@@ -790,6 +790,7 @@ local function process_device(device)
 
         circuit = device_entity.get_circuit_network(wire_green, circuit_input)
 
+        device.priority_map = nil
         if circuit then
             local green_signals = circuit.signals
             if green_signals then
@@ -810,6 +811,10 @@ local function process_device(device)
                             threshold_map["fluid/" .. name] = count
                         end
                     end
+                end
+                if dconfig.green_wire_as_priority then
+                    device.priority_map = threshold_map
+                    threshold_map = {}
                 end
             end
         end

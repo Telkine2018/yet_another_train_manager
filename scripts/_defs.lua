@@ -18,9 +18,10 @@ local prefix = commons.prefix
 ---@field trainstop_id integer                              @ Associated train stop id
 ---@field requested_items table<string, Request>            @ Requested items (round to threshholds)
 ---@field produced_items table<string, Request>             @ Provided items (round to threshholds)
+---@field priority_map table<string, integer>               @ Item => priority
 ---@field train Train                                       @ current train in/tp depot
 ---@field trains table<int, Train>                          @ trains that target depot
----@field deliveries {[int]:Delivery}                   @ indexed by train id
+---@field deliveries {[int]:Delivery}                       @ indexed by train id
 ---@field image_index integer
 ---@field scanned_cargo_mask integer?
 ---@field scanned_fluid_mask integer?
@@ -85,6 +86,7 @@ local prefix = commons.prefix
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
 ---@field parking_penalty integer?
+---@field green_wire_as_priority boolean?
 
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
@@ -109,7 +111,6 @@ local prefix = commons.prefix
 ---@field create_tick integer
 ---@field producer_failed_logged boolean?
 ---@field train_notfound_logged boolean?
----@field priority integer
 ---@field failcode integer
 ---@field in_index boolean?
 

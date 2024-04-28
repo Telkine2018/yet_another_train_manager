@@ -237,6 +237,7 @@ local function create_fields(ftable, device)
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
     add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
+    add_boolean_field("green_wire_as_priority", use_carry[role], np("green_wire_as_priority.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
     if not is_builder then
@@ -577,7 +578,7 @@ local function create_request_table(request_flow, dconfig)
 
     local request_table = request_flow.add {
         type = "table",
-        column_count = 3,
+        column_count = 2,
         name = "request_table"
     }
 
@@ -1092,6 +1093,8 @@ local function save_values(player)
     save_boolean("station_locked")
     save_boolean("combined")
     save_boolean("no_remove_constraint")
+    save_boolean("green_wire_as_priority")
+    
 
     save_mask("network_mask", dconfig)
     save_item("builder_fuel_item")

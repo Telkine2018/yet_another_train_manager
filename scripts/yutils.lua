@@ -410,7 +410,6 @@ function yutils.add_production(production)
     local network = device.network
     local name = production.name
 
-    production.priority = device.priority
     device.produced_items[name] = production
     local productions_for_name = network.productions[name]
     if not productions_for_name then
