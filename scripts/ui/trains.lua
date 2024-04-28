@@ -183,10 +183,14 @@ function uitrains.update(player)
         fid.style.horizontal_align = "center"
         fid.style.width = header_defs[field_index].width
 
+        local state_label = { np("state" .. train.state) }
+        if not train.has_fuel then
+            state_label = { "", state_label, { np("nofuel") } }
+        end
         field_index = field_index + 1
         local fstate = row.add {
             type = "label",
-            caption = { np("state" .. train.state) }
+            caption = state_label
         }
         fstate.style.horizontal_align = "center"
         fstate.style.width = header_defs[field_index].width
