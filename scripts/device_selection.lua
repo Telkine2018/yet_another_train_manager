@@ -245,11 +245,11 @@ local function show_selected(player, entity)
                     end
 
                     local fdistance = label_flow.add { type = "label", caption =  label_value}
-                    fdistance.style = "yatm_distance_label"
+                    fdistance.style = "yatm_camera_label"
 
                     local duration = game.tick - d.start_tick
                     local fduration = label_flow.add { type = "label", caption = flib_format.time(duration) }
-                    fduration.style = "yatm_distance_label"
+                    fduration.style = "yatm_camera_label"
 
                     local schedule = d.train.train.schedule
                     local current = schedule.current
@@ -263,7 +263,30 @@ local function show_selected(player, entity)
                     end
                     if station then
                         local fstation = label_flow.add { type = "label", caption = "-> " .. station }
-                        fstation.style = "yatm_distance_label"
+                        fstation.style = "yatm_camera_label"
+                    end
+                    local train = d.train.train
+                    local contents = train.get_contents()
+                    local fluid_contents = train.get_fluid_contents()
+                    if next(contents) or next(fluid_contents) then
+
+                        for item, count in pairs(contents) do
+                            local content_table = {}
+                            table.insert(content_table, flib_format.number(count))
+                            table.insert(content_table, "x")
+                            table.insert(content_table, "[item=" .. item .."]")
+                            local caption = table.concat(content_table," ")
+                            local fcontent = label_flow.add { type = "label", caption = caption }
+                            fcontent.style = "yatm_camera_label"
+                            end
+                        for fluid, count in pairs(fluid_contents) do
+                            local content_table = {}
+                            table.insert(content_table, flib_format.number(count))
+                            table.insert(content_table, "x")
+                            table.insert(content_table, "[fluid=" .. fluid .."]")
+                            local fcontent = label_flow.add { type = "label", caption = caption }
+                            fcontent.style = "yatm_camera_label"
+                        end
                     end
                 end
             end

@@ -2,6 +2,7 @@ local commons = require("scripts.commons")
 local data_util = require("__flib__.data-util")
 
 local default_font_color = {1, 1, 1}
+local prefix = commons.prefix
 
 local empty_checkmark = {
     filename = data_util.empty_image,
@@ -185,19 +186,20 @@ styles.yatm_minimap_label = {
     type = "label_style",
     font = "default-game",
     font_color = default_font_color,
-    size = 90,
+    size = 50,
     vertical_align = "bottom",
     horizontal_align = "right",
     right_padding = 4
 }
 
-styles.yatm_distance_label = {
+styles.yatm_camera_label = {
     type = "label_style",
-    font = "default-game",
-    height = 20,
+    font = prefix .. "-small_font",
+    height = 15,
     width = 250,
-    font_color = {0,1,1},
+    font_color = {0,255,0},
     right_padding = 4,
+    left_margin = 5,
     vertical_align = "top",
     horizontal_align = "left",
 }
