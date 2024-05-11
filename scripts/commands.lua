@@ -225,7 +225,7 @@ local function cmd_list_manual(p)
         for _, train in pairs(surface.get_trains(force)) do
             if train.front_stock.force == force and train.manual_mode then
                 local mtrain = context.trains[train.id]
-                if not(mtrain and mtrain.teleporting) then
+                if not (mtrain and mtrain.teleporting) then
                     player.print({ "", "TRAIN=", logger.gps_to_text(train.front_stock) })
                     count = count + 1
                 end
@@ -289,6 +289,27 @@ local function cmd_teleporters(p)
     device_selection.show_teleporters(player)
 end
 
+---@param p CustomCommandData
+local function cmd_remove_ghost(p)
+    local player = game.players[p.player_index]
+    local surface = player.surface
+    local p = player.position
+    local w = 10
+
+    for chunk in surface.get_chunks() do
+        local tiles = surface.find_tiles_filtered { area = chunk.area, has_tile_ghost=true }
+        for _, tile in pairs(tiles) do
+            local ghosts = tile.get_tile_ghosts(player.force_index)
+            if ghosts and #ghosts > 0 then
+                for _, ghost in pairs(ghosts) do
+                    ghost.destroy()
+                end
+            end
+        end
+    end
+
+end
+
 commands.add_command("yatm_scheduler", { "yaltn_scheduler" }, cmd_scheduler)
 commands.add_command("yatm_disable_network", { "yaltn_disable_network" }, cmd_disable_network)
 commands.add_command("yatm_enable_network", { "yaltn_enable_network" }, cmd_enable_network)
@@ -300,6 +321,7 @@ commands.add_command("yatm_active", { "yatm_active" }, cmd_active)
 commands.add_command("yatm_list_manual", { "yatm_list_manual" }, cmd_list_manual)
 commands.add_command("yatm_distances", { "yatm_distances" }, cmd_distances)
 commands.add_command("yatm_teleporters", { "yatm_teleporters" }, cmd_teleporters)
+commands.add_command("yatm_remove_ghosts", { "yatm_remove_ghosts" }, cmd_remove_ghost)
 
 local function on_load() devices_runtime = Runtime.get("Device") end
 tools.on_load(on_load)

@@ -229,6 +229,8 @@ local function find_provider(request, forbidden, no_surface_change)
 
             if dist > 0 then
                 check_production(production, dist)
+            else
+                request.failcode = 57
             end
         end
         if candidate then
@@ -530,8 +532,9 @@ function scheduler.create_payload(request, candidate, train, available_slots)
         local slot_count = math.floor(amount / stack_size)
         if slot_count == 0 then
             slot_count = 1
+        else
+            amount = slot_count * stack_size
         end
-        amount = slot_count * stack_size
         available_slots = available_slots - slot_count
     else
         capacity = fluid_capacity
