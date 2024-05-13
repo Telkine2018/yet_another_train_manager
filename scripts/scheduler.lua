@@ -572,8 +572,9 @@ function scheduler.create_payload(request, candidate, train, available_slots)
                         local slot_count = math.floor(amount / stack_size)
                         if slot_count == 0 then
                             slot_count = 1
+                        else
+                            amount = slot_count * stack_size
                         end
-                        amount = slot_count * stack_size
                         available_slots = available_slots - slot_count
                     else
                         if fluid_capacity == 0 then
