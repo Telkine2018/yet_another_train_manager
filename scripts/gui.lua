@@ -167,16 +167,21 @@ local function create_fields(ftable, device)
         if not active then return end
 
         local value = dconfig[name] or false
-        ftable.add { type = "label", caption = { np(name) } }
+        local label = ftable.add { type = "label", caption = { np(name) } }
         if not tooltip then
             tooltip = ""
         end
+        label.style.top_margin = 3
+        label.style.bottom_margin = 3
+      
         local field = ftable.add {
             type = "checkbox",
             name = name,
             state = value,
             tooltip = { tooltip }
         }
+        field.style.top_margin = 3
+        field.style.bottom_margin = 3
     end
 
     ---@param name string
@@ -238,6 +243,7 @@ local function create_fields(ftable, device)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
     add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
     add_boolean_field("green_wire_as_priority", use_carry[role], np("green_wire_as_priority.tooltip"))
+    add_boolean_field("red_wire_as_stock", use_carry[role], np("red_wire_as_stock.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
     if not is_builder then
@@ -1094,7 +1100,7 @@ local function save_values(player)
     save_boolean("station_locked")
     save_boolean("combined")
     save_boolean("no_remove_constraint")
-    save_boolean("green_wire_as_priority")
+    save_boolean("red_wire_as_stock")
     
 
     save_mask("network_mask", dconfig)

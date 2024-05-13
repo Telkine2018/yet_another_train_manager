@@ -109,7 +109,7 @@ local function on_configuration_changed(context)
     end
     yutils.init_se(context)
     global.debug_version = commons.debug_version
-    game.print {"yaltn-device.update-message"}
+    game.print { "yaltn-device.update-message" }
 end
 
 ---@return Context
@@ -591,7 +591,7 @@ local identifier_signal = {
 ---@param train Train
 ---@param device Device
 function yutils.set_train_composition(train, device)
-    if device.out_red.valid then
+    if device.out_red.valid and not device.red_wire_as_stock then
         local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
 
         cb.set_signal(1, { signal = loco_mask_signal, count = train.loco_mask })
@@ -1236,6 +1236,30 @@ function yutils.load_pattern_cache()
         end
     end
     global.pattern_cache = PatternCache
+end
+
+---@param content {[string]:integer}
+---@param sign integer
+---@return ConstantCombinatorParameters[]
+function yutils.build_parameters(content, sign)
+    ---@type ConstantCombinatorParameters[]
+    local parameters
+    local index = 1
+    if content then
+        parameters = {}
+        for name, count in pairs(content) do
+            local signalid = tools.sprite_to_signal(name)
+            table.insert(parameters, {
+                signal = signalid,
+                count = sign * count,
+                index = index
+            })
+            index = index + 1
+        end
+    else
+        parameters = {}
+    end
+    return parameters
 end
 
 ---@param device Device

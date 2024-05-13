@@ -130,17 +130,24 @@ local function set_device_output(device, content, train, sign, operation)
     })
     index = index + 1
 
-    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = parameters
+    local cb
+    if not device.red_wire_as_stock then
+        cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = parameters
+    end
 
     cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
     cb.parameters = parameters
 end
 
+---@param device Device
 local function clear_device_output(device)
     if not device then return end
-    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = nil
+    local cb
+    if not device.red_wire_as_stock then
+        cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = nil
+    end
 
     cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
     cb.parameters = nil
@@ -587,7 +594,6 @@ local function on_train_changed_state(event)
                     else -- feeder_role
                         train.state = defs.train_states.to_feeder
                     end
-                    yutils.set_train_composition(train, delivery.provider)
                     allocator.route_to_station(train, delivery.provider)
                 else
                     clear_device_output(delivery.requester)
@@ -716,8 +722,8 @@ local is_train_stuck = yutils.is_train_stuck
 ---@param train Train
 local function process_trains(train)
     if train.train.valid then
-        if is_train_stuck(train) then 
-            logger.report_train_stuck(train) 
+        if is_train_stuck(train) then
+            logger.report_train_stuck(train)
         end
     else
         yutils.remove_train(train)

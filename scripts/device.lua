@@ -767,6 +767,7 @@ local function process_device(device)
         device.threshold = dconfig.threshold or config.default_threshold
         device.delivery_penalty = dconfig.delivery_penalty or config.delivery_penalty
         device.combined = dconfig.combined
+        device.red_wire_as_stock = dconfig.red_wire_as_stock
 
         if red_signals then
             for _, signal_amount in ipairs(red_signals) do
@@ -1045,6 +1046,25 @@ local function process_device(device)
                     yutils.remove_production(production)
                     device.produced_items[name] = nil
                 end
+            end
+        end
+
+        if device.red_wire_as_stock then
+            local network_mask = device.network_mask
+            local network = device.network
+
+            local items = {}
+            for name, pmap in pairs(network.productions) do
+                for _, product in pairs(pmap) do
+                    if band(product.device.network_mask, network_mask) ~= 0 then
+                        items[name] = (items[name] or 0) + (product.provided - product.requested)
+                    end
+                end
+            end
+            local parameters = yutils.build_parameters(items, 1)
+            if device.out_red.valid then
+                local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+                cb.parameters = parameters
             end
         end
         return

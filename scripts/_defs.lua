@@ -87,6 +87,7 @@ local prefix = commons.prefix
 ---@field has_specific_pattern boolean?
 ---@field parking_penalty integer?
 ---@field green_wire_as_priority boolean?
+---@field red_wire_as_stock boolean?
 
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
