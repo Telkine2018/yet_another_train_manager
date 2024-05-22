@@ -773,6 +773,7 @@ function scheduler.process_request(request)
     local is_item = string.sub(request.name, 1, 1) == "i"
     if not buffer_feeder_roles[device.role] and not buffer_feeder_roles[candidate_device.role] then
         local patterns = trainconf.intersect_patterns(device.patterns, candidate_device.patterns)
+        candidate_device.failcode = nil
         train = find_train(candidate_device, device.network_mask, patterns, is_item)
         if not train then
             if not request.train_notfound_logged then
@@ -780,7 +781,7 @@ function scheduler.process_request(request)
             end
             table.insert(context.waiting_requests, request)
             request.inqueue = true
-            request.failcode = 60
+            request.failcode = candidate_device.failcode or 60
             return
         end
         ::train_found::
