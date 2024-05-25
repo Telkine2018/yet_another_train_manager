@@ -1098,6 +1098,7 @@ local function save_values(player)
     save_number("parking_penalty", nil, nil)
 
     save_boolean("station_locked")
+    save_boolean("green_wire_as_priority")
     save_boolean("combined")
     save_boolean("no_remove_constraint")
     save_boolean("red_wire_as_stock")
