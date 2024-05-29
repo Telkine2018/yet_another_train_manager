@@ -224,6 +224,14 @@ data:extend({
             setting_type = "runtime-per-user",
             order="al",
             default_value = 50
+        }, {
+            type = "int-setting",
+            name = "yaltn-item_slot_count",
+            setting_type = "startup",
+            order="am",
+            minimum_value = 64,
+            default_value = 128,
+            maximum_value = 256
         }
 })
 

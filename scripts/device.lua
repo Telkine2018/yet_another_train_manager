@@ -63,6 +63,8 @@ local train_count_signal = {
     name = commons.prefix .. "-train_count"
 }
 
+local item_slot_count = settings.startup[prefix .. "-item_slot_count"].value
+
 -----------------------------------------------------
 
 ---@param device Device
@@ -910,6 +912,11 @@ local function process_device(device)
                     end
 
                     if device.internal_requests and device.internal_requests[name] then
+                        local production = device.produced_items[name]
+                        if production then
+                            production.provided = 0
+                            yutils.remove_production(production)
+                        end
                         goto skip
                     end
 
@@ -1054,13 +1061,19 @@ local function process_device(device)
             local network = device.network
 
             local items = {}
+            local count = 0
             for name, pmap in pairs(network.productions) do
                 for _, product in pairs(pmap) do
                     if band(product.device.network_mask, network_mask) ~= 0 then
                         items[name] = (items[name] or 0) + (product.provided - product.requested)
+                        count = count + 1
+                        if count >= item_slot_count then
+                            goto end_prod
+                        end
                     end
                 end
             end
+            ::end_prod::
             local parameters = yutils.build_parameters(items, 1)
             if device.out_red.valid then
                 local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]

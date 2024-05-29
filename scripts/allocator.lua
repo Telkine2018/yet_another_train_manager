@@ -404,16 +404,6 @@ function allocator.find_train(device, network_mask, patterns, is_item)
             goto skip_builder
         end
 
-        if patterns and not (patterns[builder.builder_pattern] or patterns[builder.builder_gpattern]) then
-            builder.failcode = 33
-            goto skip_builder
-        end
-
-        if builder.inactive then
-            builder.failcode = 36
-            goto skip_builder
-        end
-
         if is_item ~= nil then
             if is_item then
                 if builder.builder_cargo_count == 0 then
@@ -424,6 +414,16 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip_builder
                 end
             end
+        end
+
+        if patterns and not (patterns[builder.builder_pattern] or patterns[builder.builder_gpattern]) then
+            builder.failcode = 33
+            goto skip_builder
+        end
+
+        if builder.inactive then
+            builder.failcode = 36
+            goto skip_builder
         end
 
         if not allocator.builder_is_available(builder) then

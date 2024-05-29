@@ -4,6 +4,8 @@ local prefix = commons.prefix
 local png = commons.png
 
 
+local item_slot_count = settings.startup[prefix .. "-item_slot_count"].value
+
 local function create_base(base_name)
 	local entity = table.deepcopy(data.raw['arithmetic-combinator']['arithmetic-combinator'])
 	local decider = data.raw['decider-combinator']['decider-combinator']
@@ -83,7 +85,7 @@ local function create_base(base_name)
 				name = base_name .. '-cc',
 				flags = { 'placeable-off-grid' },
 				collision_mask = {},
-				item_slot_count = 64,
+				item_slot_count = item_slot_count,
 				circuit_wire_max_distance = 3,
 				sprites = invisible_sprite,
 				activity_led_sprites = invisible_sprite,

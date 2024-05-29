@@ -87,7 +87,7 @@ function uiutils.build_station_filter(player)
 
         ---@param device Device
         local cond = function(device)
-            return bit32.band(device.network_mask, uiconfig.network_mask) ~= 0
+            return bit32.band(device.network_mask or 0, uiconfig.network_mask) ~= 0
         end
         table.insert(conditions, cond)
     end
