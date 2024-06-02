@@ -173,7 +173,7 @@ local function create_fields(ftable, device)
         end
         label.style.top_margin = 3
         label.style.bottom_margin = 3
-      
+
         local field = ftable.add {
             type = "checkbox",
             name = name,
@@ -456,7 +456,14 @@ local function get_request_tooltip(request)
 
     ---@cast signal -nil
     local count = get_real_count(request.name, request.amount, request.amount_unit, signal.type)
-    return { np("request-item-qty.tooltip"), tools.comma_value(count), "[" .. signal.type .. "=" .. signal.name .. "]" }
+    local name
+    if signal.type == "item" then
+        name = game.item_prototypes[signal.name].localised_name
+    else
+        name = game.fluid_prototypes[signal.name].localised_name
+    end
+    return { np("request-item-qty.tooltip"), tools.comma_value(count), "[" .. signal.type .. "=" .. signal.name .. "]",
+        { "", "[color=cyan]", name, "[/color]" } }
 end
 
 ---@param flow LuaGuiElement
@@ -1102,7 +1109,7 @@ local function save_values(player)
     save_boolean("combined")
     save_boolean("no_remove_constraint")
     save_boolean("red_wire_as_stock")
-    
+
 
     save_mask("network_mask", dconfig)
     save_item("builder_fuel_item")
