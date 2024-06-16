@@ -87,6 +87,10 @@ end
 local function on_configuration_changed(context)
     is_configuration_changed = true
 
+    if not context.session_tick then
+        context.session_tick  = -1
+    end
+
     yutils.fix_all(context)
     yutils.convert_mask_to_pattern(context)
     for _, d in pairs(devices_runtime.map) do
@@ -139,7 +143,8 @@ function yutils.get_context()
         config_id = 1,
         delivery_id = 1,
         min_log_id = 1,
-        pattern_ids = {}
+        pattern_ids = {},
+        session_tick = -1
     }
     context.trains = trains_runtime.map --[[@as table<integer, Train>]]
     global.context = context

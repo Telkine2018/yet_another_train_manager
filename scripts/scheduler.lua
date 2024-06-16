@@ -727,7 +727,7 @@ function scheduler.process_request(request)
     if not device.entity or not device.entity.valid then return end
 
     if device.network.reservations_tick == context.session_tick then
-        if device.network.reservations[request.name] then
+        if device.network.reservations and  device.network.reservations[request.name] then
             request.failcode = 81
             return
         end
