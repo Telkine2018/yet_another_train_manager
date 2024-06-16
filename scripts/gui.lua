@@ -244,6 +244,7 @@ local function create_fields(ftable, device)
     add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
     add_boolean_field("green_wire_as_priority", use_carry[role], np("green_wire_as_priority.tooltip"))
     add_boolean_field("red_wire_as_stock", use_carry[role], np("red_wire_as_stock.tooltip"))
+    add_boolean_field("reservation", use_requester[role], np("reservation.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
     if not is_builder then
@@ -1109,6 +1110,7 @@ local function save_values(player)
     save_boolean("combined")
     save_boolean("no_remove_constraint")
     save_boolean("red_wire_as_stock")
+    save_boolean("reservation")
 
 
     save_mask("network_mask", dconfig)

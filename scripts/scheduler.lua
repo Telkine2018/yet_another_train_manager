@@ -723,7 +723,17 @@ function scheduler.process_request(request)
 
     request.inqueue = false
     request.failcode = nil
+    request.device.failcode = nil
     if not device.entity or not device.entity.valid then return end
+
+    if device.network.reservations_tick == context.session_tick then
+        if device.network.reservations[request.name] then
+            request.failcode = 81
+            return
+        end
+    else
+        device.network.reservations = nil
+    end
 
     if request.cancelled then return end
 
@@ -752,6 +762,14 @@ function scheduler.process_request(request)
 
     local candidate = find_provider(request)
     if not candidate then
+        if device.reservation then
+            if device.network.reservations_tick == context.session_tick then
+                device.network.reservations[request.name] = true
+            else
+                device.network.reservations = { [request.name] = true }
+                device.network.reservations_tick = context.session_tick
+            end
+        end
         if not request.producer_failed_logged then
             logger.report_producer_notfound(request)
         end
@@ -907,6 +925,7 @@ function scheduler.process(data)
 
         context.request_per_iteration = #context.running_requests / 12
         context.request_iter = 0
+        context.session_tick = GAMETICK
     end
 
     context.request_iter = context.request_iter + context.request_per_iteration

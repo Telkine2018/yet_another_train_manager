@@ -470,10 +470,14 @@ function allocator.find_train(device, network_mask, patterns, is_item)
 
     -- switch to connected netwok
     network = network.connected_network
-    if not network then return nil end
+    if not network then 
+        device.failcode = device.failcode or 22
+        return nil 
+    end
 
     local index = pathing.find_closest_incoming_rail(device)
     if not index then
+        device.failcode = device.failcode or 22
         return nil
     end
 
@@ -519,6 +523,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         return allocator.builder_create_train(min_builder)
     end
 
+    device.failcode = device.failcode or 22
     return nil
 end
 

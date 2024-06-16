@@ -769,6 +769,7 @@ local function process_device(device)
         device.threshold = dconfig.threshold or config.default_threshold
         device.delivery_penalty = dconfig.delivery_penalty or config.delivery_penalty
         device.combined = dconfig.combined
+        device.reservation = dconfig.reservation
         device.red_wire_as_stock = dconfig.red_wire_as_stock
 
         if red_signals then

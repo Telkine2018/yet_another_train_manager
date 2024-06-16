@@ -88,6 +88,7 @@ local prefix = commons.prefix
 ---@field parking_penalty integer?
 ---@field green_wire_as_priority boolean?
 ---@field red_wire_as_stock boolean?
+---@field reservation boolean?
 
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
@@ -135,6 +136,8 @@ local prefix = commons.prefix
 ---@field production_indexes table<string, ProductionIndex[]>   @ not used
 ---@field depotstats table<string, DepotStat>
 ---@field depotstats_tick integer
+---@field reservations table<string, boolean>
+---@field reservations_tick integer
 
 ---@class DepotStat
 ---@field free integer
@@ -208,6 +211,7 @@ local prefix = commons.prefix
 ---@field request_per_iteration integer
 ---@field request_iter integer
 ---@field pattern_ids {[string]:integer}
+---@field session_tick integer
 
 ---@class LogEvent
 ---@field id integer
