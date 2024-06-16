@@ -279,7 +279,7 @@ end
 scheduler.find_provider = find_provider
 
 ---@param delivery Delivery
----@param existing_content table<string, int>
+---@param existing_content table<string, integer>
 function scheduler.create_delivery_schedule(delivery, existing_content)
     local provider = delivery.provider
     local requester = delivery.requester
@@ -645,6 +645,10 @@ local function create_delivery(request, candidate, train, content, existing_cont
         scheduler.schedule_feeder_waiting_loading(train, candidate_device)
     else
         scheduler.create_delivery_schedule(delivery, existing_content)
+    end
+
+    if device.network.reservations then
+        device.network.reservations[request.name] = nil
     end
 
     local station = train.depot
