@@ -153,6 +153,13 @@ data:extend({
         default_value = 4,
         maximum_value = 31
     },
+    {
+        type = "bool-setting",
+        name = "yaltn-auto_rename_station",
+		setting_type = "runtime-global",
+        order="au",
+        default_value = true
+    }
 })
 
 data:extend({

@@ -345,6 +345,22 @@ local function on_entity_built(entity, tags)
         devices_runtime:add(device)
     elseif name == commons.se_elevator_name then
         multisurf.add_elevator(entity)
+    elseif entity.type == "train-stop" then
+        if config.auto_rename_station then
+            local name = entity.backer_name
+            local all = entity.surface.get_train_stops { name = name, force = entity.force }
+            if #all == 2 then
+                local index = 1
+                while true do
+                    local new_name = name .. "_" .. index
+                    if #entity.surface.get_train_stops { name = new_name, force = entity.force } == 0 then
+                        entity.backer_name = new_name
+                        break
+                    end
+                    index = index + 1
+                end
+            end
+        end
     end
 end
 
@@ -431,6 +447,7 @@ local entity_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
     { filter = 'name', name = device_name },
+    { filter = "name", name = "train-stop" },
     { filter = "name", name = commons.se_elevator_name }
 }
 
