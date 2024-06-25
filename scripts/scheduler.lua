@@ -334,12 +334,17 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             end
         end
 
-        teleport.add_teleporter(provider.network, teleport_pos,
-            provider.position, records)
+        teleport.add_teleporter(provider.network, teleport_pos, provider.position, records)
 
         local backer_name = provider.trainstop.backer_name
-        local station_list = provider.trainstop.surface.get_train_stops { name = backer_name, force = provider.trainstop.force }
-        if #station_list > 1 then
+        local needed
+        if config.allow_trainstop_name_routing then
+            local station_list = provider.trainstop.surface.get_train_stops { name = backer_name, force = provider.trainstop.force }
+            needed = #station_list > 1
+        else
+            needed = true
+        end
+        if needed then
             table.insert(records, {
                 rail = provider.trainstop.connected_rail,
                 temporary = true,
@@ -347,6 +352,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
                 wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
             })
         end
+
 
         table.insert(records, {
             station = backer_name,
@@ -391,8 +397,16 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
 
 
         local backer_name = requester.trainstop.backer_name
-        local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
-        if #station_list > 1 then
+        local needed
+        if not requester.trainstop.trains_limit or requester.trainstop.trains_limit < 1000 then
+            needed = true
+        elseif config.allow_trainstop_name_routing then
+            local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
+            needed = #station_list > 1
+        else
+            needed = true
+        end
+        if needed then
             table.insert(records, {
                 rail = requester.trainstop.connected_rail,
                 temporary = true,
@@ -731,7 +745,7 @@ function scheduler.process_request(request)
     if not device.entity or not device.entity.valid then return end
 
     if device.network.reservations_tick == context.session_tick then
-        if device.network.reservations and  device.network.reservations[request.name] then
+        if device.network.reservations and device.network.reservations[request.name] then
             request.failcode = 81
             return
         end

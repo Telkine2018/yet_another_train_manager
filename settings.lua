@@ -155,9 +155,16 @@ data:extend({
     },
     {
         type = "bool-setting",
-        name = "yaltn-auto_rename_station",
+        name = "yaltn-allow_trainstop_name_routing",
 		setting_type = "runtime-global",
         order="au",
+        default_value = true
+    },
+    {
+        type = "bool-setting",
+        name = "yaltn-auto_rename_station",
+		setting_type = "runtime-global",
+        order="av",
         default_value = true
     }
 })

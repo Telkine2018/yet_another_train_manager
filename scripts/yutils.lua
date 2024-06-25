@@ -541,10 +541,11 @@ function yutils.remove_train(train, report_manual)
 
     local station = train.depot
     train.state = defs.train_states.removed
+    train.network.trainstats_change = true
     if train.origin_id then
         local origin = devices_runtime.map[train.origin_id] --[[@as Device]]
         if origin and origin.create_count then
-            origin.create_count = origin.create_count - 1
+            origin.network.trainstats_change = true
         end
         train.origin_id = nil
     end
@@ -693,6 +694,7 @@ function yutils.create_train(ttrain, station)
         front_stock = ttrain.front_stock,
         origin_id = station.id
     }
+    station.network.trainstats_change = true
     trainconf.get_train_composition(train)
     return train
 end

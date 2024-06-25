@@ -9,7 +9,7 @@ local allocator = require("scripts.allocator")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
 local logger = require("scripts.logger")
-local depotstats = require("scripts.depotstats")
+local trainstats = require("scripts.trainstats")
 
 ------------------------------------------------------
 local device_manager = {}
@@ -725,8 +725,7 @@ local function process_device(device)
         end
 
         local create_count = allocator.get_create_count(device)
-
-        local stat = depotstats.get(device.network, device.builder_gpattern)
+        local train_count = trainstats.get(device.network, device.builder_gpattern)
 
         ---@type ConstantCombinatorParameters
         local parameters = {
@@ -737,7 +736,7 @@ local function process_device(device)
             }, {
             index = 2,
             signal = train_count_signal,
-            count = stat.used
+            count = train_count
         }
         }
         yutils.set_device_output(device, parameters)
@@ -1259,5 +1258,31 @@ Runtime.register {
     max_per_run = config.max_per_run,
     refresh_rate = config.reaction_time * 60 / config.nticks
 }
+
+local function factory_organizer_install()
+    if remote.interfaces["factory_organizer"] then
+        remote.add_interface("yet_another_train_manager_move", {
+            ---@param entity LuaEntity
+            ---@return LuaEntity[] ?
+            collect = function(entity)
+                local context = get_context()
+                local device = devices[entity.unit_number]
+                if not device then return end
+
+                local result = {}
+                table.insert(result, device.out_green)
+                table.insert(result, device.out_red)
+                if device.ebuffer then
+                    table.insert(result, device.ebuffer)
+                end
+                return result
+            end
+        })
+        remote.call("factory_organizer", "add_collect_method", commons.device_name, "yet_another_train_manager_move", "collect")
+    end
+end
+
+tools.on_load(factory_organizer_install)
+
 
 return device_manager

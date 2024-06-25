@@ -26,6 +26,7 @@ local config = {
     teleport_animation = true,
     teleport_report = false,
     auto_ajust_delivery = true,
+    allow_trainstop_name_routing = true,
     auto_rename_station = true,
     
     show_train_mask = true,

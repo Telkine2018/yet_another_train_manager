@@ -186,7 +186,7 @@ function uistations.update(player)
         field_index = field_index + 1
 
         ------ station state
-        local state = device.image_index
+        local state = device.image_index or 1
         local fstate = content.add {
             type = "sprite-button",
             sprite = (state > 0) and (commons.prefix .. "_state_" .. state) or

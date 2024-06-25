@@ -44,7 +44,7 @@ local prefix = commons.prefix
 ---@field builder_remove_count integer?
 ---@field builder_parts {[string]:integer}
 ---@field failcode int?
----@field create_count integer?
+---@field create_count integer?                 @ createe count - delete count
 ---@field ebuffer LuaEntity
 ---@field teleport_ecount integer?
 ---@field teleport_rcount integer?
@@ -134,14 +134,11 @@ local prefix = commons.prefix
 ---@field is_orbit boolean
 ---@field teleporters table<integer, Device>
 ---@field production_indexes table<string, ProductionIndex[]>   @ not used
----@field depotstats table<string, DepotStat>
----@field depotstats_tick integer
+---@field trainstats table<string, integer>
+---@field trainstats_tick integer
+---@field trainstats_change boolean
 ---@field reservations table<string, boolean>
 ---@field reservations_tick integer
-
----@class DepotStat
----@field free integer
----@field used integer
 
 ---@class ProductionIndex
 ---@field priority integer

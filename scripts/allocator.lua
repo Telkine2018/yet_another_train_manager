@@ -704,6 +704,7 @@ function allocator.builder_create_train(builder)
     local create_count = builder.create_count or 0
     builder.create_count = create_count + 1
     builder.builder_create_count = (builder.builder_create_count or 0) + 1
+    builder.network.trainstats_change = true
     return train
 end
 
@@ -816,6 +817,7 @@ function allocator.builder_delete_train(train, builder)
 
     builder.create_count = (builder.create_count or 0) - 1
     builder.builder_remove_count = (builder.builder_remove_count or 0) + 1
+    builder.network.trainstats_change = true
 end
 
 ---@param train Train
