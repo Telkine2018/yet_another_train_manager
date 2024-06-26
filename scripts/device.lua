@@ -732,11 +732,11 @@ local function process_device(device)
             {
                 index = 1,
                 signal = create_count_signal,
-                count = create_count
+                count = create_count or 0
             }, {
             index = 2,
             signal = train_count_signal,
-            count = train_count
+            count = train_count or 0
         }
         }
         yutils.set_device_output(device, parameters)

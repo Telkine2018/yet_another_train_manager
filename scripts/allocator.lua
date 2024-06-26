@@ -297,6 +297,13 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
+                if train.lock_time then
+                    if train.lock_time > GAMETICK then
+                        goto skip
+                    end
+                    train.lock_time = nil
+                end
+
                 if min_dist and
                     (min_priority > candidate.priority or (d > min_dist and min_priority == candidate.priority)) then
                     candidate.failcode = 20

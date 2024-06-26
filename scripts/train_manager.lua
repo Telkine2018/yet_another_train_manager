@@ -231,6 +231,7 @@ local function find_depot_and_route(network, train, device)
     if depot.role ~= builder_role then
         yutils.set_train_composition(train, depot)
     end
+    train.lock_time = GAMETICK + 10
     allocator.route_to_station(train, depot)
     yutils.link_train_to_depot(depot, train)
     return depot

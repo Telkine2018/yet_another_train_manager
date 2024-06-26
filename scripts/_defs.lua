@@ -189,6 +189,7 @@ local prefix = commons.prefix
 ---@field gpattern string
 ---@field rpattern string
 ---@field origin_id integer?
+---@field lock_time integer?
 
 ---@class Context
 ---@field networks table<integer, table<integer, SurfaceNetwork>>       @ index by force index / surface index 
