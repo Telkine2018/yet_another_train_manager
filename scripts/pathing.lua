@@ -97,6 +97,9 @@ function pathing.device_distance(from_device, to_device)
     local ptrainstop = from_device.trainstop
     local dist
     local connected_rail = ptrainstop.connected_rail
+    if not connected_rail then
+        return -1
+    end
     local direction = ptrainstop.connected_rail_direction
     path_request.from_front = {
         rail = connected_rail,
