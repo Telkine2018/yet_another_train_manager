@@ -851,13 +851,16 @@ tools.on_gui_click(np("importfa"),
     ---@param e EventData.on_gui_click
     function(e)
         local player = game.players[e.player_index]
-        if not remote.interfaces["factory_analyzer"] then
-            player.print { np("factory-analyzer-not-found") }
-            return
+        ---@type {[string]:number}
+
+        local ingredients
+        if remote.interfaces["factory_analyzer"] then
+            ingredients = remote.call("factory_analyzer", "get_ingredients", e.player_index)
+        end
+        if not ingredients and remote.interfaces["factory_graph"] then
+            ingredients = remote.call("factory_graph", "get_ingredients", e.player_index)
         end
 
-        ---@type {[string]:number}
-        local ingredients = remote.call("factory_analyzer", "get_ingredients", e.player_index)
         if not ingredients then
             player.print { np("no-selection-in-factory-analyzer") }
             return
