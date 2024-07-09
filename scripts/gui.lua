@@ -943,11 +943,20 @@ local function update_runtime_config(device, player)
 
     device.conf_change = true
     if not device.dconfig.requests then
+        if device.internal_requests then
+            for name, _ in pairs(device.internal_requests) do
+                local request = device.requested_items[name]
+                if request then
+                    request.requested = 0
+                end
+            end
+        end
         device.internal_requests = nil
         device.internal_threshold = nil
         return
     end
 
+    local previous_requests = device.internal_requests
     device.internal_requests = nil
     device.internal_threshold = {}
 
@@ -983,6 +992,17 @@ local function update_runtime_config(device, player)
                 if player then
                     player.print({ "yaltn-messages.threshold_over_request" },
                         { 1, 0, 0 })
+                end
+            end
+        end
+    end
+
+    if previous_requests then
+        for name, _ in pairs(previous_requests) do
+            if not device.internal_requests or not device.internal_requests[name] then
+                local request = device.requested_items[name]
+                if request then
+                    request.requested = 0
                 end
             end
         end
