@@ -40,7 +40,7 @@ uiutils.tab = {
 uiutils.uiframe_name = commons.prefix .. "-uiframe"
 uiutils.element_prefix = commons.prefix .. "-uiutils."
 
-uiutils.slot_internal_color = "flib_slot_pink"
+uiutils.slot_internal_color = "flib_slot_orange"
 uiutils.slot_provided_color = "flib_slot_green"
 uiutils.slot_requested_color = "flib_slot_red"
 uiutils.slot_transit_color = "flib_slot_blue"

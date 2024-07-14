@@ -398,9 +398,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
 
         local backer_name = requester.trainstop.backer_name
         local needed
-        if not requester.trainstop.trains_limit or requester.trainstop.trains_limit < 1000 then
-            needed = true
-        elseif config.allow_trainstop_name_routing then
+        if config.allow_trainstop_name_routing then
             local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
             needed = #station_list > 1
         else

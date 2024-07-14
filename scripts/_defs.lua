@@ -86,6 +86,7 @@ local prefix = commons.prefix
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
 ---@field parking_penalty integer?
+---@field is_parking boolean?
 ---@field green_wire_as_priority boolean?
 ---@field red_wire_as_stock boolean?
 ---@field reservation boolean?

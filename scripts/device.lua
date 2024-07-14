@@ -674,7 +674,7 @@ local function process_device(device)
     if role == depot_role then
         device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
-        device.parking_penalty = dconfig.parking_penalty
+        device.is_parking = dconfig.is_parking
         if circuit then
             ---@cast circuit -nil
             read_virtual_signals()

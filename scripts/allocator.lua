@@ -115,19 +115,11 @@ function allocator.find_free_depot(network, train, device, is_parking)
                         end
                     end
                 else
-                    if depot.parking_penalty then
-                        if is_parking then
-                            d = d - depot.parking_penalty
-                            if d < 0 then
-                                d = 0
-                            end
-                        else
-                            d = d + depot.parking_penalty
-                        end
-                    end
-
                     depot_priority = 0
                     if not is_parking then
+                        if depot.is_parking then
+                            goto skip
+                        end
                         depot_priority = depot.priority
                         if min_priority then
                             if min_priority > depot_priority then

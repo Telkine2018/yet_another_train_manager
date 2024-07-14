@@ -46,8 +46,6 @@ local config = {
     fa_use_stack = false,
     fa_threshold_percent = 50.0,
 
-    default_parking_penalty = 300,
-
     teleport_timeout = 30 * 60,
     teleport_min_distance = 90,
 

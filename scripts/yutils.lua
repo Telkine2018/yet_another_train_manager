@@ -282,6 +282,10 @@ local function fix_device(device)
             end
         end
     end
+    if device.parking_penalty then
+        device.parking_penalty = nil
+        device.is_parking = true
+    end
 end
 
 ---@param network SurfaceNetwork
