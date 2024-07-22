@@ -319,6 +319,7 @@ local function on_train_changed_state(event)
     GAMETICK = event.tick
     local new_state = event.train.state
     local context = yutils.get_context()
+
     if new_state == defines.train_state.wait_station then
         local train = context.trains[event.train.id]
         local trainstop = event.train.station
@@ -512,26 +513,14 @@ local function on_train_changed_state(event)
                 end
             end
         end
+        return
     elseif new_state == defines.train_state.manual_control then
         local train = context.trains[event.train.id]
         if train then
             if train.teleporting then return end
             yutils.remove_train(train)
         end
-    elseif new_state == defines.train_state.destination_full then
-        local train = context.trains[event.train.id]
-        if train and train.state == defs.train_states.loading then
-            local delivery = train.delivery
-            if delivery and not train.depot then
-                local requester = delivery.requester
-                local depot = allocator.find_free_depot(requester.network, train, requester, true)
-                if not depot then
-                    return
-                end
-                yutils.link_train_to_depot(depot, train)
-                allocator.insert_route_to_depot(train.train, depot)
-            end
-        end
+        return
     elseif event.old_state == defines.train_state.wait_station then
         local train = context.trains[event.train.id]
         if train then
@@ -571,6 +560,19 @@ local function on_train_changed_state(event)
                     delivery.end_load_tick = GAMETICK
                     if delivery.requester.combined and train.cargo_count > 0 then
                         try_combine_request(train, delivery)
+                    end
+                end
+
+                if new_state == defines.train_state.destination_full then
+                    local delivery = train.delivery
+                    if delivery and not train.depot then
+                        local requester = delivery.requester
+                        local depot = allocator.find_free_depot(requester.network, train, requester, true)
+                        if not depot then
+                            return
+                        end
+                        yutils.link_train_to_depot(depot, train)
+                        allocator.insert_route_to_depot(train.train, depot)
                     end
                 end
                 return
@@ -673,6 +675,7 @@ local function on_train_changed_state(event)
                 yutils.unlink_train_from_depots(train.depot, train)
             end
         end
+        return
     end
 end
 
