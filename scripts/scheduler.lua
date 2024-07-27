@@ -102,8 +102,8 @@ local function find_provider(request, forbidden, no_surface_change)
                 return
             end
             if not train_available_states[train.state] then
-                production_device.failcode = 44
-                request.failcode = 44
+                production_device.failcode = production_device.failcode or 44
+                request.failcode = request.failcode or 44
                 return
             end
             if not train.has_fuel then

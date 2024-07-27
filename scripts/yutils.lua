@@ -379,6 +379,21 @@ function yutils.get_network_base(force_index, surface_index)
     return network
 end
 
+---@param force_index integer
+---@param surface_index integer
+---@return SurfaceNetwork?
+function yutils.find_network_base(force_index, surface_index)
+
+    local networks_perforce = context.networks[force_index]
+    if not networks_perforce then return nil end
+
+    local network = networks_perforce[surface_index]
+    if not network then return nil end
+
+    return network
+end
+
+
 ---@param entity LuaEntity
 function yutils.get_network(entity)
     return yutils.get_network_base(entity.force_index, entity.surface_index)

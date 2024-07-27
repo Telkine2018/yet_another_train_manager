@@ -444,15 +444,33 @@ end
 
 local qte_field_with = 70
 
+---@param player_index integer
 ---@param request RequestConfig?
 ---@return LocalisedString
-local function get_request_tooltip(request)
+local function get_request_tooltip(player_index, request)
     if not (request and request.name and request.amount and request.amount_unit) then
         return { np("request-item.tooltip") }
     end
     local signal = tools.sprite_to_signal(request.name)
     if not signal or (signal.type ~= "item" and signal.type ~= "fluid") then
         return { np("request-item.tooltip") }
+    end
+
+    local player = game.players[player_index]
+    local network = yutils.find_network_base(player.force_index, player.surface.index)
+    ---@type LocalisedString
+    local stock_tooltip = ""
+    if network then
+        local productions = network.productions[request.name]
+        if productions then
+            local count = 0
+            for _, production in pairs(productions) do
+                if not production.device.inactive then
+                    count = count + (production.provided - production.requested)
+                end
+            end
+            stock_tooltip = { np("request-item-stock.tooltip"), tools.comma_value(count) }
+        end
     end
 
     ---@cast signal -nil
@@ -463,8 +481,14 @@ local function get_request_tooltip(request)
     else
         name = game.fluid_prototypes[signal.name].localised_name
     end
-    return { np("request-item-qty.tooltip"), tools.comma_value(count), "[" .. signal.type .. "=" .. signal.name .. "]",
-        { "", "[color=cyan]", name, "[/color]" } }
+
+    return { 
+        np("request-item-qty.tooltip"), 
+        tools.comma_value(count),
+         "[" .. signal.type .. "=" .. signal.name .. "]",
+        { "", "[color=cyan]", name, "[/color]" } ,
+        stock_tooltip
+    }
 end
 
 ---@param flow LuaGuiElement
@@ -502,7 +526,7 @@ end
 ---@param flow LuaGuiElement
 local function update_request_tooltip(flow)
     local request = get_request(flow)
-    local tooltip = get_request_tooltip(request)
+    local tooltip = get_request_tooltip(flow.player_index, request)
     flow.signal.tooltip = tooltip
 end
 
@@ -534,7 +558,7 @@ local function create_request_field(request_table, request)
         type = "choose-elem-button",
         elem_type = "signal",
         name = "signal",
-        tooltip = get_request_tooltip(request)
+        tooltip = get_request_tooltip(flow.player_index, request)
     }
     tools.set_name_handler(signal_field, np("request_signal"))
 
