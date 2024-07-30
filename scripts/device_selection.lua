@@ -6,7 +6,7 @@ local Runtime = require("scripts.runtime")
 local yutils = require("scripts.yutils")
 local allocator = require("scripts.allocator")
 local trainconf = require("scripts.trainconf")
-local pathing = require("scripts.pathing")
+local Pathing = require("scripts.pathing")
 
 local device_selection = {}
 
@@ -228,7 +228,7 @@ local function show_selected(player, entity)
                 if d.train and d.train.front_stock.valid and not d.train.teleporting then
                     local flow = get_flow(player)
 
-                    local distance = pathing.train_distance(d.train, device)
+                    local distance = Pathing.train_distance(d.train, device)
                     local pos = d.train.front_stock.position
                     local camera = flow.add { type = "camera", position = pos, surface = entity.surface_index }
                     camera.style.size = 300

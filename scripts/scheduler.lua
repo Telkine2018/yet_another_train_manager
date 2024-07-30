@@ -10,7 +10,7 @@ local multisurf = require("scripts.multisurf")
 local allocator = require("scripts.allocator")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
-local pathing = require("scripts.pathing")
+local Pathing = require("scripts.pathing")
 
 local scheduler = {}
 
@@ -27,9 +27,9 @@ local find_train = allocator.find_train
 local band = bit32.band
 
 
-local find_closest_incoming_rail = pathing.find_closest_incoming_rail
-local device_distance = pathing.device_distance
-local train_distance = pathing.train_distance
+local find_closest_incoming_rail = Pathing.find_closest_incoming_rail
+local device_distance = Pathing.device_distance
+local train_distance = Pathing.train_distance
 
 
 local function on_load()
@@ -267,7 +267,7 @@ local function find_provider(request, forbidden, no_surface_change)
             dist = production_device.distance_cache[trainstop.unit_number]
         end
         if not dist then
-            dist = pathing.device_trainstop_distance(production_device, trainstop)
+            dist = Pathing.device_trainstop_distance(production_device, trainstop)
         end
         if dist > 0 then
             check_production(production, dist)
@@ -775,6 +775,10 @@ function scheduler.process_request(request)
 
     local requested = request.requested - request.provided
     if requested < request.threshold then return end
+
+    if request.device.trainstop.backer_name == "Aluminium plate 1 [item=aluminium-plate] >>" then
+        log("");
+    end
 
     local candidate = find_provider(request)
     if not candidate then

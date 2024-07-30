@@ -7,8 +7,7 @@ local spatial_index = require("scripts.spatial_index")
 local yutils = require("scripts.yutils")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
-local pathing = require("scripts.pathing")
-
+local Pathing = require("scripts.pathing")
 
 local allocator = {}
 
@@ -92,11 +91,11 @@ function allocator.find_free_depot(network, train, device, is_parking)
                     if not depot.trainstop.connected_rail then
                         goto skip
                     end
-                    d = pathing.device_distance(depot, device)
+                    d = Pathing.device_distance(depot, device)
                 end
 
                 if d < 0 then
-                    depot.failcode = 80
+                    depot.failcode = depot.failcode or 80
                     goto skip
                 end
 
@@ -153,7 +152,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
         end
         local connected_network = network.connected_network
         if connected_network then
-            local index = pathing.find_closest_exiting_trainstop(device)
+            local index = Pathing.find_closest_exiting_trainstop(device)
             if not index then return nil end
 
             local output = connected_network.connecting_outputs[index]
@@ -168,7 +167,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
                         if not depot.trainstop.connected_rail then
                             goto skip
                         end
-                        d = pathing.rail_device_distance(output, depot)
+                        d = Pathing.rail_device_distance(output, depot)
                     end
                     if d < 0 then
                         goto skip
@@ -226,7 +225,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
     return nil
 end
 
-local device_distance = pathing.device_distance
+local device_distance = Pathing.device_distance
 
 ---@param device Device
 ---@param network_mask integer
@@ -248,7 +247,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         return device_distance(candidate, device)
     end
     local f_train_distance = function(train)
-        return pathing.train_distance(train, device)
+        return Pathing.train_distance(train, device)
     end
 
     ---@param candidate Device
@@ -285,7 +284,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                 end
                 if d < 0 then
                     candidate.failcode = 80
-                    device.failcode = device.failcode or candidate.failcode
+                    device.failcode = 80
                     goto skip
                 end
 
@@ -474,7 +473,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         return nil 
     end
 
-    local index = pathing.find_closest_incoming_rail(device)
+    local index = Pathing.find_closest_incoming_rail(device)
     if not index then
         device.failcode = device.failcode or 22
         return nil
@@ -486,10 +485,10 @@ function allocator.find_train(device, network_mask, patterns, is_item)
     dst_id = trainstop.unit_number
     dst_position = trainstop.position
     f_effective_distance = function(candidate)
-        return pathing.device_trainstop_distance(candidate, trainstop)
+        return Pathing.device_trainstop_distance(candidate, trainstop)
     end
     f_train_distance = function(train)
-        return pathing.train_trainstop_distance(train, trainstop)
+        return Pathing.train_trainstop_distance(train, trainstop)
     end
     pending_trains = {}
 

@@ -318,8 +318,9 @@ end
 
 local rail_types = {
     ["straight-rail"] = true,
-    ["curved-rail"] = true
-
+    ["curved-rail"] = true,
+    ["rail-chain-signal"] = true,
+    ["rail-signal"] = true
 }
 
 ---@param entity LuaEntity
@@ -446,6 +447,8 @@ end
 local entity_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'rail-chain-signal' },
+    { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
     { filter = "name", name = "train-stop" },
     { filter = "name", name = commons.se_elevator_name }
@@ -454,6 +457,8 @@ local entity_filter = {
 local entity_destroyed_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'rail-chain-signal' },
+    { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
     { filter = "name", name = "train-stop" },
     { filter = "name", name = commons.se_elevator_name }

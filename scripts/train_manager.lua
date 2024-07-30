@@ -7,7 +7,7 @@ local config = require("scripts.config")
 local logger = require("scripts.logger")
 local allocator = require("scripts.allocator")
 local scheduler = require("scripts.scheduler")
-local pathing = require("scripts.pathing")
+local Pathing = require("scripts.pathing")
 
 local train_mgr = {}
 
@@ -293,7 +293,7 @@ local function try_combine_request(train, delivery)
             dist = from_device.distance_cache[candidate.device.id]
         end
         if not dist then
-            dist = pathing.device_distance(from_device, candidate.device)
+            dist = Pathing.device_distance(from_device, candidate.device)
         end
 
         if dist < 0 then goto skip end

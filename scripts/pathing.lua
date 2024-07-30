@@ -1,8 +1,10 @@
 local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local Runtime = require("scripts.runtime")
+local pathingd = require("scripts.pathingd")
 
 local pathing = {}
+
 --[[
 local request_type = "any-goal-accessible"
 local measure_field = "penalty"
@@ -15,6 +17,8 @@ local devices_runtime
 
 local front_direction = defines.rail_direction.front
 local back_direction = defines.rail_direction.back
+
+local steps_limit = nil
 
 ---@param direction integer
 ---@return integer
@@ -38,7 +42,8 @@ function pathing.device_trainstop_distance(from_device, to_trainstop)
         from_back = {
             rail = rail,
             direction = opposite(direction)
-        }
+        },
+        steps_limit = steps_limit
     }
     local result = game.request_train_path(path_request)
     local dist
@@ -61,7 +66,8 @@ end
 function pathing.rail_device_distance(rail, to_device)
     local path_request = {
         type = request_type,
-        goals = { { train_stop = to_device.trainstop } }
+        goals = { { train_stop = to_device.trainstop } },
+        steps_limit = steps_limit
     }
     path_request.from_front = {
         rail = rail,
@@ -92,7 +98,8 @@ end
 function pathing.device_distance(from_device, to_device)
     local path_request = {
         type = request_type,
-        goals = { { train_stop = to_device.trainstop } }
+        goals = { { train_stop = to_device.trainstop } },
+        steps_limit = steps_limit
     }
     local ptrainstop = from_device.trainstop
     local dist
@@ -129,7 +136,8 @@ function pathing.train_distance(train, to_device)
     local path_request = {
         type = request_type,
         goals = { { train_stop = to_device.trainstop } },
-        train = train.train
+        train = train.train,
+        steps_limit = steps_limit
     }
     path_request.train = train.train
     local result = game.request_train_path(path_request)
@@ -146,7 +154,8 @@ function pathing.train_trainstop_distance(train, trainstop)
     local path_request = {
         type = request_type,
         goals = { { train_stop = trainstop } },
-        train = train.train
+        train = train.train,
+        steps_limit = steps_limit
     }
     path_request.train = train.train
     local result = game.request_train_path(path_request)
@@ -238,5 +247,8 @@ tools.on_load(on_load)
 
 tools.on_nth_tick(60, clear_cache)
 
-
-return pathing
+if  settings.startup["yaltn-use_direct_distance"].value then
+    return pathingd
+else
+    return pathing
+end
