@@ -323,6 +323,20 @@ function yutils.fix_all(context)
 
     fix_request_table(context.waiting_requests)
     fix_request_table(context.running_requests)
+
+    for _, train in pairs(context.trains) do
+        if train.state == defs.train_states.to_requester then
+            if train.depot then
+                if train.train.valid then
+                    if train.train.state == defines.train_state.destination_full then
+                        train.state = defs.train_states.at_waiting_station
+                    else
+                        train.state = defs.train_states.to_waiting_station
+                    end
+                end
+            end
+        end
+    end
     context.request_iter = 0
     context.event_log    = {}
     context.min_log_id   = 1

@@ -889,18 +889,18 @@ function allocator.insert_route_to_depot(ttrain, depot)
         temporary = true,
         rail_direction = trainstop.connected_rail_direction,
         wait_conditions = {
-            { type = "time", compare_type = "and", ticks = 1 }
+            { type = "time", compare_type = "and", ticks = 10 }
         }
     })
 
     table.insert(records, index + 1, {
         station = trainstop.backer_name,
         wait_conditions = {
-            { type = "time", compare_type = "and", ticks = 1 }
+            { type = "time", compare_type = "and", ticks = 10 }
         }
     })
 
-    ttrain.schedule = { current = 1, records = records }
+    ttrain.schedule = { current = index, records = records }
 end
 
 ---@param train Train

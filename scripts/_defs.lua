@@ -315,8 +315,9 @@ def.train_states = {
     to_feeder = 13,
     at_feeder = 14,
     feeder_loading = 15,
-    waiting_for_requester = 16,
-    removed = 17
+    removed = 17,
+    to_waiting_station = 18,
+    at_waiting_station = 19
 }
 
 def.provider_requester_buffer_feeder_roles = {

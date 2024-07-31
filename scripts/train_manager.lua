@@ -437,6 +437,11 @@ local function on_train_changed_state(event)
                         end
                         train.delivery.start_unload_tick = GAMETICK
                         return
+                    elseif train.state == defs.train_states.to_waiting_station
+                        and train.depot 
+                        and train.depot.trainstop_id == trainstop.unit_number
+                        then
+                        train.state = defs.train_states.at_waiting_station
                     end
                     -- no delivery
                 else
@@ -524,7 +529,7 @@ local function on_train_changed_state(event)
     elseif event.old_state == defines.train_state.wait_station then
         local train = context.trains[event.train.id]
         if train then
-            if train.state == defs.train_states.loading or train.state == defs.train_states.waiting_for_requester then
+            if train.state == defs.train_states.loading then
                 local delivery = train.delivery
 
                 if delivery.provider.main_controller then
@@ -571,6 +576,7 @@ local function on_train_changed_state(event)
                         if not depot then
                             return
                         end
+                        train.state = defs.train_states.to_waiting_station
                         yutils.link_train_to_depot(depot, train)
                         allocator.insert_route_to_depot(train.train, depot)
                     end
@@ -663,17 +669,15 @@ local function on_train_changed_state(event)
                     scheduler.create_delivery_schedule(delivery,
                         existing_content)
                 end
-            elseif train.state == defs.train_states.waiting_for_requester then
-                train.state = defs.train_states.waiting_for_requester
             end
         end
     elseif new_state == defines.train_state.on_the_path and event.old_state == defines.train_state.destination_full then
         local train = context.trains[event.train.id]
-
-        if train and train.delivery then
-            if train.depot and defs.provider_requester_roles[train.delivery.provider.role] then
+        if train and train.state == defs.train_states.at_waiting_station then
+            if train.depot then
                 yutils.unlink_train_from_depots(train.depot, train)
             end
+            train.state = defs.train_states.to_requester
         end
         return
     end
