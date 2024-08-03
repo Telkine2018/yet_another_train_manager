@@ -143,6 +143,7 @@ local function find_provider(request, forbidden, no_surface_change)
         local delivery_count = table_size(production_device.deliveries)
         if delivery_count >= 1 then
             if production_device.max_delivery and delivery_count >= production_device.max_delivery then
+                production_device.failcode = 82
                 return
             end
 
