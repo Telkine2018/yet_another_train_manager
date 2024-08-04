@@ -402,7 +402,9 @@ local function create_player_buttons()
             button_flow[button_name].destroy()
         end
 
-        if player.force.technologies[commons.device_name].researched then
+        local tech =    player.force.technologies[commons.device_name]
+                    or  player.force.technologies["nullius-" .. commons.device_name]
+        if tech and tech.researched then
             local button = button_flow.add {
                 type = "sprite-button",
                 name = button_name,

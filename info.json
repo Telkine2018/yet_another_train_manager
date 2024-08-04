@@ -11,6 +11,7 @@
 		"base >= 1.1.101",
 		"flib >= 0.8.2",
     "transfert_controller >= 1.0.0",
-    "(?) space-exploration >= 0.6.108"
+    "(?) space-exploration >= 0.6.108",
+    "? nullius"
 	]
 }

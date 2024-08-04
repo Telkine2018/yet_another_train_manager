@@ -97,6 +97,64 @@ end
 
 create_base(commons.device_name)
 
+local recipe, tech
+
+	recipe =
+	{
+		type = 'recipe',
+		name = commons.device_name,
+		enabled = false,
+		ingredients = {
+			{ 'electronic-circuit', 4 }
+		},
+		result = commons.device_name
+	}
+
+	tech = {
+		type = 'technology',
+		name = commons.device_name,
+		icon_size = 144,
+		icon = png('tech'),
+		effects = {
+			{ type = 'unlock-recipe', recipe = commons.device_name }
+		},
+		unit = {
+			count = 200,
+			ingredients = {
+				{ 'automation-science-pack', 1 },
+				{ 'logistic-science-pack',   1 } },
+			time = 15
+		},
+		order = 'a-d-d-z'
+	}
+
+if mods["nullius"] then
+
+	recipe.ingredients = {
+		{"arithmetic-combinator", 2},
+		{"copper-cable", 10}
+	}
+	recipe.category = "tiny-crafting"
+	recipe.always_show_made_in = true
+	recipe.name = "nullius-" .. recipe.name
+
+	
+	tech.name = "nullius-" .. tech.name
+	tech.order = "nullius-z-z-z"
+	tech.unit = {
+		count = 100,
+		ingredients = {
+			{"nullius-geology-pack", 1}, {"nullius-climatology-pack", 1}, {"nullius-mechanical-pack", 1}, {"nullius-electrical-pack", 1}
+		},
+		time = 25
+	}
+	tech.prerequisites = {"nullius-checkpoint-optimization", "nullius-traffic-control"}
+	tech.ignore_tech_tech_cost_multiplier = true
+	tech.effects = {
+		{ type = 'unlock-recipe', recipe = recipe.name }
+	}
+
+end
 
 data:extend {
 
@@ -112,31 +170,10 @@ data:extend {
 		stack_size = 10 },
 
 	-- Recipe
-	{ type = 'recipe',
-		name = commons.device_name,
-		enabled = false,
-		ingredients = {
-			{ 'electronic-circuit', 20 }
-		},
-		result = commons.device_name
-	},
+	recipe,
 
 	-- Technology
-	{ type = 'technology',
-		name = commons.device_name,
-		icon_size = 144,
-		icon = png('tech'),
-		effects = {
-			{ type = 'unlock-recipe', recipe = commons.device_name }
-		},
-		unit = {
-			count = 200,
-			ingredients = {
-				{ 'automation-science-pack', 1 },
-				{ 'logistic-science-pack',   1 } },
-			time = 15 },
-		order = 'a-d-d-z'
-	}
+	tech
 }
 
 local ebuffer = {
