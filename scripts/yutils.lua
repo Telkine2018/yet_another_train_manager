@@ -88,7 +88,7 @@ local function on_configuration_changed(context)
     is_configuration_changed = true
 
     if not context.session_tick then
-        context.session_tick  = -1
+        context.session_tick = -1
     end
 
     yutils.fix_all(context)
@@ -286,6 +286,24 @@ local function fix_device(device)
         device.parking_penalty = nil
         device.is_parking = true
     end
+
+    if global.debug_version < 5 then
+        local dconfig = device.dconfig
+        if dconfig then
+            if dconfig.red_wire_as_stock then
+                dconfig.red_wire_mode = 2
+            else
+                dconfig.red_wire_mode = 1
+            end
+            dconfig.red_wire_as_stock = nil
+        end
+
+        if device.red_wire_as_stock then
+            device.red_wire_mode = 2
+        else
+            device.red_wire_mode = 1
+        end
+    end
 end
 
 ---@param network SurfaceNetwork
@@ -397,7 +415,6 @@ end
 ---@param surface_index integer
 ---@return SurfaceNetwork?
 function yutils.find_network_base(force_index, surface_index)
-
     local networks_perforce = context.networks[force_index]
     if not networks_perforce then return nil end
 
@@ -406,7 +423,6 @@ function yutils.find_network_base(force_index, surface_index)
 
     return network
 end
-
 
 ---@param entity LuaEntity
 function yutils.get_network(entity)
@@ -630,7 +646,7 @@ local identifier_signal = {
 ---@param train Train
 ---@param device Device
 function yutils.set_train_composition(train, device)
-    if device.out_red.valid and not device.red_wire_as_stock then
+    if device.out_red.valid then
         local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
 
         cb.set_signal(1, { signal = loco_mask_signal, count = train.loco_mask })

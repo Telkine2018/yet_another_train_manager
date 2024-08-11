@@ -88,7 +88,8 @@ local prefix = commons.prefix
 ---@field parking_penalty integer?
 ---@field is_parking boolean?
 ---@field green_wire_as_priority boolean?
----@field red_wire_as_stock boolean?
+---@field red_wire_as_stock boolean?                        # obsolete
+---@field red_wire_mode integer?                            # 1: train content, 2: overall stock, 3: current_delivery
 ---@field reservation boolean?
 
 ---@class DeviceConfig : BaseDeviceConfig

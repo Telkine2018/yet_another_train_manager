@@ -225,6 +225,38 @@ local function create_fields(ftable, device)
         end
     end
 
+    ---@param name string
+    ---@param active boolean
+    ---@param item_count integer
+    ---@param tooltip string?
+    local function add_dropdown_field(name, active, item_count, tooltip)
+        if not active then return end
+
+        local value = dconfig[name] or 1
+        local label = ftable.add { type = "label", caption = { np(name) } }
+        if not tooltip then
+            tooltip = ""
+        end
+        label.style.top_margin = 3
+        label.style.bottom_margin = 3
+
+        local items = {}
+        for i=1, item_count do
+            table.insert(items, {np(name .. "." .. i)})    
+        end
+
+        local field = ftable.add {
+            type = "drop-down",
+            name = name,
+            tooltip = { tooltip },
+            selected_index = value,
+            items = items
+        }
+        field.style.top_margin = 3
+        field.style.bottom_margin = 3
+    end
+
+
     create_mask("network_mask", use_all_enable[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
 
     add_numeric_field("priority", has_priority[role], np("priority-tooltip"), true)
@@ -243,7 +275,7 @@ local function create_fields(ftable, device)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
     add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
     add_boolean_field("green_wire_as_priority", use_carry[role], np("green_wire_as_priority.tooltip"))
-    add_boolean_field("red_wire_as_stock", use_carry[role], np("red_wire_as_stock.tooltip"))
+    add_dropdown_field("red_wire_mode", use_carry[role], 4, np("red_wire_mode.tooltip"))
     add_boolean_field("reservation", use_requester[role], np("reservation.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
@@ -1095,6 +1127,7 @@ local function save_values(player)
     end
 
 
+    
     ---@param name string
     ---@param values table<string, any>
     local function save_mask(name, values)
@@ -1140,6 +1173,19 @@ local function save_values(player)
         dconfig[name] = value
     end
 
+    ---@param name string
+    local function save_dropdown(name)
+        ---@type LuaGuiElement
+        local field = field_table[name]
+        if not field then
+            dconfig[name] = nil
+            return
+        end
+
+        local value = field.selected_index 
+        dconfig[name] = value
+    end
+
     save_number("priority")
     save_number("rpriority")
     save_number("max_delivery", 0, 100)
@@ -1156,9 +1202,8 @@ local function save_values(player)
     save_boolean("green_wire_as_priority")
     save_boolean("combined")
     save_boolean("no_remove_constraint")
-    save_boolean("red_wire_as_stock")
+    save_dropdown("red_wire_mode")
     save_boolean("reservation")
-
 
     save_mask("network_mask", dconfig)
     save_item("builder_fuel_item")

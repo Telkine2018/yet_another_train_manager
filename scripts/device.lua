@@ -792,7 +792,7 @@ local function process_device(device)
         device.delivery_penalty = dconfig.delivery_penalty or config.delivery_penalty
         device.combined = dconfig.combined
         device.reservation = dconfig.reservation
-        device.red_wire_as_stock = dconfig.red_wire_as_stock
+        device.red_wire_mode = dconfig.red_wire_mode
 
         if red_signals then
             for _, signal_amount in ipairs(red_signals) do
@@ -1079,7 +1079,7 @@ local function process_device(device)
             end
         end
 
-        if device.red_wire_as_stock then
+        if device.red_wire_mode == 2 then
             local network_mask = device.network_mask
             local network = device.network
 

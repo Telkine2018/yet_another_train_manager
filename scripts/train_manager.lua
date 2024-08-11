@@ -90,50 +90,81 @@ local function set_device_output(device, content, train, sign, operation)
         parameters = {}
     end
 
-    if train then
-        if train.loco_mask ~= 0 then
+    local function apply_train_info(parameters, index)
+        if train then
+            if train.loco_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = loco_mask_signal,
+                    count = train.loco_mask,
+                    index = index
+                })
+                index = index + 1
+            end
+            if train.cargo_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = cargo_mask_signal,
+                    count = train.cargo_mask,
+                    index = index
+                })
+                index = index + 1
+            end
+            if train.fluid_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = fluid_mask_signal,
+                    count = train.fluid_mask,
+                    index = index
+                })
+                index = index + 1
+            end
             table.insert(parameters, {
-                signal = loco_mask_signal,
-                count = train.loco_mask,
+                signal = identifier_signal,
+                count = train.pattern_id,
                 index = index
             })
             index = index + 1
         end
-        if train.cargo_mask ~= 0 then
-            table.insert(parameters, {
-                signal = cargo_mask_signal,
-                count = train.cargo_mask,
-                index = index
-            })
-            index = index + 1
-        end
-        if train.fluid_mask ~= 0 then
-            table.insert(parameters, {
-                signal = fluid_mask_signal,
-                count = train.fluid_mask,
-                index = index
-            })
-            index = index + 1
-        end
+        
         table.insert(parameters, {
-            signal = identifier_signal,
-            count = train.pattern_id,
+            signal = operation_signal,
+            count = operation,
             index = index
         })
+        
         index = index + 1
+        return parameters, index
     end
 
-    table.insert(parameters, {
-        signal = operation_signal,
-        count = operation,
-        index = index
-    })
-    index = index + 1
+    parameters, index = apply_train_info(parameters, index)
 
     local cb
-    if not device.red_wire_as_stock then
+    local red_wire_mode = device.red_wire_mode
+    if red_wire_mode == 1 then
         cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
         cb.parameters = parameters
+    elseif red_wire_mode == 3 or red_wire_mode == 4 then
+        if train then
+            local rparameters, rindex = {}, 1
+            rparameters, rindex = apply_train_info(rparameters, rindex)
+            local delivery = train.delivery
+            while delivery do
+                for name, count in pairs(delivery.content) do
+                    local signalid = tools.sprite_to_signal(name)
+                    table.insert(rparameters, {
+                        signal = signalid,
+                        count = count,
+                        index = rindex
+                    })
+                    rindex = rindex + 1
+                end
+                if red_wire_mode == 3 then
+                    break
+                else
+                    delivery = delivery.combined_delivery
+                end
+            end
+            cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+            cb.parameters = rparameters
+        end
     end
 
     cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
@@ -143,14 +174,15 @@ end
 ---@param device Device
 local function clear_device_output(device)
     if not device then return end
-    local cb
-    if not device.red_wire_as_stock then
+    if device.red_wire_mode ~= 2 then
+        local cb
         cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = nil
+
+        cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
         cb.parameters = nil
     end
 
-    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = nil
 end
 
 local wire_red = defines.wire_type.red
@@ -438,9 +470,9 @@ local function on_train_changed_state(event)
                         train.delivery.start_unload_tick = GAMETICK
                         return
                     elseif train.state == defs.train_states.to_waiting_station
-                        and train.depot 
+                        and train.depot
                         and train.depot.trainstop_id == trainstop.unit_number
-                        then
+                    then
                         train.state = defs.train_states.at_waiting_station
                     end
                     -- no delivery
