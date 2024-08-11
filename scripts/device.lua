@@ -291,7 +291,7 @@ local function new_device(entity, tags)
         device.inactive = dconfig.inactive and 1 or nil
     elseif config_id > 0 then
         dconfig = context.configs[config_id]
-        need_register = false
+        dconfig = tools.table_deep_copy(dconfig)
     end
 
     if not dconfig then

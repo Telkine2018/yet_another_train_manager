@@ -711,7 +711,7 @@ function scheduler.schedule_feeder_waiting_loading(train, provider)
     local conditions = {
         { type = "inactivity", compare_type = "or", ticks = provider.inactivity_delay * 60 }
     }
-    if (provider.max_load_time) then
+    if (provider.max_load_time and provider.max_load_time > 0) then
         table.insert(conditions, { type = "time", compare_type = "or", ticks = provider.max_load_time * 60 })
     end
     table.insert(records, {

@@ -604,6 +604,9 @@ function yutils.remove_train(train, report_manual)
         end
         station.produced_items = {}
     end
+    if train.refueler and train.refueler.train == train then
+        train.refueler.train = nil
+    end
 
     if train.delivery then yutils.cancel_delivery(train.delivery) end
 

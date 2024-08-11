@@ -322,11 +322,13 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
+                --[[
                 if candidate.inactive then
                     candidate.failcode = 27
                     device.failcode = device.failcode or candidate.failcode
                     goto skip
                 end
+                --]]
 
                 if not defs.train_available_states[train.state] then
                     goto skip
