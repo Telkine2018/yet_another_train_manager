@@ -7,7 +7,7 @@ local config = require("scripts.config")
 local logger = require("scripts.logger")
 local allocator = require("scripts.allocator")
 local scheduler = require("scripts.scheduler")
-local pathing = require("scripts.pathing")
+local Pathing = require("scripts.pathing")
 
 local train_mgr = {}
 
@@ -90,60 +90,99 @@ local function set_device_output(device, content, train, sign, operation)
         parameters = {}
     end
 
-    if train then
-        if train.loco_mask ~= 0 then
+    local function apply_train_info(parameters, index)
+        if train then
+            if train.loco_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = loco_mask_signal,
+                    count = train.loco_mask,
+                    index = index
+                })
+                index = index + 1
+            end
+            if train.cargo_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = cargo_mask_signal,
+                    count = train.cargo_mask,
+                    index = index
+                })
+                index = index + 1
+            end
+            if train.fluid_mask ~= 0 then
+                table.insert(parameters, {
+                    signal = fluid_mask_signal,
+                    count = train.fluid_mask,
+                    index = index
+                })
+                index = index + 1
+            end
             table.insert(parameters, {
-                signal = loco_mask_signal,
-                count = train.loco_mask,
+                signal = identifier_signal,
+                count = train.pattern_id,
                 index = index
             })
             index = index + 1
         end
-        if train.cargo_mask ~= 0 then
-            table.insert(parameters, {
-                signal = cargo_mask_signal,
-                count = train.cargo_mask,
-                index = index
-            })
-            index = index + 1
-        end
-        if train.fluid_mask ~= 0 then
-            table.insert(parameters, {
-                signal = fluid_mask_signal,
-                count = train.fluid_mask,
-                index = index
-            })
-            index = index + 1
-        end
+        
         table.insert(parameters, {
-            signal = identifier_signal,
-            count = train.pattern_id,
+            signal = operation_signal,
+            count = operation,
             index = index
         })
+        
         index = index + 1
+        return parameters, index
     end
 
-    table.insert(parameters, {
-        signal = operation_signal,
-        count = operation,
-        index = index
-    })
-    index = index + 1
+    parameters, index = apply_train_info(parameters, index)
 
-    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = parameters
+    local cb
+    local red_wire_mode = device.red_wire_mode
+    if red_wire_mode == 1 then
+        cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = parameters
+    elseif red_wire_mode == 3 or red_wire_mode == 4 then
+        if train then
+            local rparameters, rindex = {}, 1
+            rparameters, rindex = apply_train_info(rparameters, rindex)
+            local delivery = train.delivery
+            while delivery do
+                for name, count in pairs(delivery.content) do
+                    local signalid = tools.sprite_to_signal(name)
+                    table.insert(rparameters, {
+                        signal = signalid,
+                        count = count,
+                        index = rindex
+                    })
+                    rindex = rindex + 1
+                end
+                if red_wire_mode == 3 then
+                    break
+                else
+                    delivery = delivery.combined_delivery
+                end
+            end
+            cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+            cb.parameters = rparameters
+        end
+    end
 
     cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
     cb.parameters = parameters
 end
 
+---@param device Device
 local function clear_device_output(device)
     if not device then return end
-    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = nil
+    if device.red_wire_mode ~= 2 then
+        local cb
+        cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = nil
 
-    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = nil
+        cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+        cb.parameters = nil
+    end
+
 end
 
 local wire_red = defines.wire_type.red
@@ -224,6 +263,7 @@ local function find_depot_and_route(network, train, device)
     if depot.role ~= builder_role then
         yutils.set_train_composition(train, depot)
     end
+    train.lock_time = GAMETICK + 10
     allocator.route_to_station(train, depot)
     yutils.link_train_to_depot(depot, train)
     return depot
@@ -285,7 +325,7 @@ local function try_combine_request(train, delivery)
             dist = from_device.distance_cache[candidate.device.id]
         end
         if not dist then
-            dist = pathing.device_distance(from_device, candidate.device)
+            dist = Pathing.device_distance(from_device, candidate.device)
         end
 
         if dist < 0 then goto skip end
@@ -311,6 +351,7 @@ local function on_train_changed_state(event)
     GAMETICK = event.tick
     local new_state = event.train.state
     local context = yutils.get_context()
+
     if new_state == defines.train_state.wait_station then
         local train = context.trains[event.train.id]
         local trainstop = event.train.station
@@ -428,6 +469,11 @@ local function on_train_changed_state(event)
                         end
                         train.delivery.start_unload_tick = GAMETICK
                         return
+                    elseif train.state == defs.train_states.to_waiting_station
+                        and train.depot
+                        and train.depot.trainstop_id == trainstop.unit_number
+                    then
+                        train.state = defs.train_states.at_waiting_station
                     end
                     -- no delivery
                 else
@@ -504,30 +550,18 @@ local function on_train_changed_state(event)
                 end
             end
         end
+        return
     elseif new_state == defines.train_state.manual_control then
         local train = context.trains[event.train.id]
         if train then
             if train.teleporting then return end
             yutils.remove_train(train)
         end
-    elseif new_state == defines.train_state.destination_full then
-        local train = context.trains[event.train.id]
-        if train and train.state == defs.train_states.loading then
-            local delivery = train.delivery
-            if delivery and not train.depot then
-                local requester = delivery.requester
-                local depot = allocator.find_free_depot(requester.network, train, requester, true)
-                if not depot then
-                    return
-                end
-                yutils.link_train_to_depot(depot, train)
-                allocator.insert_route_to_depot(train.train, depot)
-            end
-        end
+        return
     elseif event.old_state == defines.train_state.wait_station then
         local train = context.trains[event.train.id]
         if train then
-            if train.state == defs.train_states.loading or train.state == defs.train_states.waiting_for_requester then
+            if train.state == defs.train_states.loading then
                 local delivery = train.delivery
 
                 if delivery.provider.main_controller then
@@ -565,6 +599,20 @@ local function on_train_changed_state(event)
                         try_combine_request(train, delivery)
                     end
                 end
+
+                if new_state == defines.train_state.destination_full then
+                    local delivery = train.delivery
+                    if delivery and not train.depot then
+                        local requester = delivery.requester
+                        local depot = allocator.find_free_depot(requester.network, train, requester, true)
+                        if not depot then
+                            return
+                        end
+                        train.state = defs.train_states.to_waiting_station
+                        yutils.link_train_to_depot(depot, train)
+                        allocator.insert_route_to_depot(train.train, depot)
+                    end
+                end
                 return
             elseif train.state == defs.train_states.unloading then
                 local delivery = train.delivery
@@ -587,7 +635,6 @@ local function on_train_changed_state(event)
                     else -- feeder_role
                         train.state = defs.train_states.to_feeder
                     end
-                    yutils.set_train_composition(train, delivery.provider)
                     allocator.route_to_station(train, delivery.provider)
                 else
                     clear_device_output(delivery.requester)
@@ -654,18 +701,17 @@ local function on_train_changed_state(event)
                     scheduler.create_delivery_schedule(delivery,
                         existing_content)
                 end
-            elseif train.state == defs.train_states.waiting_for_requester then
-                train.state = defs.train_states.waiting_for_requester
             end
         end
     elseif new_state == defines.train_state.on_the_path and event.old_state == defines.train_state.destination_full then
         local train = context.trains[event.train.id]
-
-        if train and train.delivery then
-            if train.depot and defs.provider_requester_roles[train.delivery.provider.role] then
+        if train and train.state == defs.train_states.at_waiting_station then
+            if train.depot then
                 yutils.unlink_train_from_depots(train.depot, train)
             end
+            train.state = defs.train_states.to_requester
         end
+        return
     end
 end
 
@@ -716,8 +762,8 @@ local is_train_stuck = yutils.is_train_stuck
 ---@param train Train
 local function process_trains(train)
     if train.train.valid then
-        if is_train_stuck(train) then 
-            logger.report_train_stuck(train) 
+        if is_train_stuck(train) then
+            logger.report_train_stuck(train)
         end
     else
         yutils.remove_train(train)

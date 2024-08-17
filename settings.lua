@@ -153,6 +153,20 @@ data:extend({
         default_value = 4,
         maximum_value = 31
     },
+    {
+        type = "bool-setting",
+        name = "yaltn-allow_trainstop_name_routing",
+		setting_type = "runtime-global",
+        order="au",
+        default_value = true
+    },
+    {
+        type = "bool-setting",
+        name = "yaltn-auto_rename_station",
+		setting_type = "runtime-global",
+        order="av",
+        default_value = true
+    }
 })
 
 data:extend({
@@ -224,6 +238,22 @@ data:extend({
             setting_type = "runtime-per-user",
             order="al",
             default_value = 50
+        }, 
+        
+        {
+            type = "int-setting",
+            name = "yaltn-item_slot_count",
+            setting_type = "startup",
+            order="am",
+            minimum_value = 64,
+            default_value = 128,
+            maximum_value = 256
+        },
+        {
+            type = "bool-setting",
+            name = "yaltn-use_direct_distance",
+            setting_type = "startup",
+            default_value = false
         }
 })
 

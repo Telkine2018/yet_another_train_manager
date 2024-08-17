@@ -18,9 +18,10 @@ local prefix = commons.prefix
 ---@field trainstop_id integer                              @ Associated train stop id
 ---@field requested_items table<string, Request>            @ Requested items (round to threshholds)
 ---@field produced_items table<string, Request>             @ Provided items (round to threshholds)
+---@field priority_map table<string, integer>               @ Item => priority
 ---@field train Train                                       @ current train in/tp depot
 ---@field trains table<int, Train>                          @ trains that target depot
----@field deliveries table<int, Delivery>                   @ indexed by train id
+---@field deliveries {[int]:Delivery}                       @ indexed by train id
 ---@field image_index integer
 ---@field scanned_cargo_mask integer?
 ---@field scanned_fluid_mask integer?
@@ -43,7 +44,7 @@ local prefix = commons.prefix
 ---@field builder_remove_count integer?
 ---@field builder_parts {[string]:integer}
 ---@field failcode int?
----@field create_count integer?
+---@field create_count integer?                 @ createe count - delete count
 ---@field ebuffer LuaEntity
 ---@field teleport_ecount integer?
 ---@field teleport_rcount integer?
@@ -85,6 +86,11 @@ local prefix = commons.prefix
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
 ---@field parking_penalty integer?
+---@field is_parking boolean?
+---@field green_wire_as_priority boolean?
+---@field red_wire_as_stock boolean?                        # obsolete
+---@field red_wire_mode integer?                            # 1: train content, 2: overall stock, 3: current_delivery
+---@field reservation boolean?
 
 ---@class DeviceConfig : BaseDeviceConfig
 ---@field requests RequestConfig[]                          @ Default request
@@ -109,7 +115,6 @@ local prefix = commons.prefix
 ---@field create_tick integer
 ---@field producer_failed_logged boolean?
 ---@field train_notfound_logged boolean?
----@field priority integer
 ---@field failcode integer
 ---@field in_index boolean?
 
@@ -131,12 +136,11 @@ local prefix = commons.prefix
 ---@field is_orbit boolean
 ---@field teleporters table<integer, Device>
 ---@field production_indexes table<string, ProductionIndex[]>   @ not used
----@field depotstats table<string, DepotStat>
----@field depotstats_tick integer
-
----@class DepotStat
----@field free integer
----@field used integer
+---@field trainstats table<string, integer>
+---@field trainstats_tick integer
+---@field trainstats_change boolean
+---@field reservations table<string, boolean>
+---@field reservations_tick integer
 
 ---@class ProductionIndex
 ---@field priority integer
@@ -187,6 +191,7 @@ local prefix = commons.prefix
 ---@field gpattern string
 ---@field rpattern string
 ---@field origin_id integer?
+---@field lock_time integer?
 
 ---@class Context
 ---@field networks table<integer, table<integer, SurfaceNetwork>>       @ index by force index / surface index 
@@ -206,6 +211,7 @@ local prefix = commons.prefix
 ---@field request_per_iteration integer
 ---@field request_iter integer
 ---@field pattern_ids {[string]:integer}
+---@field session_tick integer
 
 ---@class LogEvent
 ---@field id integer
@@ -310,8 +316,9 @@ def.train_states = {
     to_feeder = 13,
     at_feeder = 14,
     feeder_loading = 15,
-    waiting_for_requester = 16,
-    removed = 17
+    removed = 17,
+    to_waiting_station = 18,
+    at_waiting_station = 19
 }
 
 def.provider_requester_buffer_feeder_roles = {

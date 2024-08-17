@@ -87,6 +87,10 @@ end
 local function on_configuration_changed(context)
     is_configuration_changed = true
 
+    if not context.session_tick then
+        context.session_tick = -1
+    end
+
     yutils.fix_all(context)
     yutils.convert_mask_to_pattern(context)
     for _, d in pairs(devices_runtime.map) do
@@ -109,7 +113,7 @@ local function on_configuration_changed(context)
     end
     yutils.init_se(context)
     global.debug_version = commons.debug_version
-    game.print {"yaltn-device.update-message"}
+    game.print { "yaltn-device.update-message" }
 end
 
 ---@return Context
@@ -139,7 +143,8 @@ function yutils.get_context()
         config_id = 1,
         delivery_id = 1,
         min_log_id = 1,
-        pattern_ids = {}
+        pattern_ids = {},
+        session_tick = -1
     }
     context.trains = trains_runtime.map --[[@as table<integer, Train>]]
     global.context = context
@@ -277,6 +282,28 @@ local function fix_device(device)
             end
         end
     end
+    if device.parking_penalty then
+        device.parking_penalty = nil
+        device.is_parking = true
+    end
+
+    if global.debug_version < 5 then
+        local dconfig = device.dconfig
+        if dconfig then
+            if dconfig.red_wire_as_stock then
+                dconfig.red_wire_mode = 2
+            else
+                dconfig.red_wire_mode = 1
+            end
+            dconfig.red_wire_as_stock = nil
+        end
+
+        if device.red_wire_as_stock then
+            device.red_wire_mode = 2
+        else
+            device.red_wire_mode = 1
+        end
+    end
 end
 
 ---@param network SurfaceNetwork
@@ -314,6 +341,20 @@ function yutils.fix_all(context)
 
     fix_request_table(context.waiting_requests)
     fix_request_table(context.running_requests)
+
+    for _, train in pairs(context.trains) do
+        if train.state == defs.train_states.to_requester then
+            if train.depot then
+                if train.train.valid then
+                    if train.train.state == defines.train_state.destination_full then
+                        train.state = defs.train_states.at_waiting_station
+                    else
+                        train.state = defs.train_states.to_waiting_station
+                    end
+                end
+            end
+        end
+    end
     context.request_iter = 0
     context.event_log    = {}
     context.min_log_id   = 1
@@ -370,6 +411,19 @@ function yutils.get_network_base(force_index, surface_index)
     return network
 end
 
+---@param force_index integer
+---@param surface_index integer
+---@return SurfaceNetwork?
+function yutils.find_network_base(force_index, surface_index)
+    local networks_perforce = context.networks[force_index]
+    if not networks_perforce then return nil end
+
+    local network = networks_perforce[surface_index]
+    if not network then return nil end
+
+    return network
+end
+
 ---@param entity LuaEntity
 function yutils.get_network(entity)
     return yutils.get_network_base(entity.force_index, entity.surface_index)
@@ -410,7 +464,6 @@ function yutils.add_production(production)
     local network = device.network
     local name = production.name
 
-    production.priority = device.priority
     device.produced_items[name] = production
     local productions_for_name = network.productions[name]
     if not productions_for_name then
@@ -537,10 +590,11 @@ function yutils.remove_train(train, report_manual)
 
     local station = train.depot
     train.state = defs.train_states.removed
+    train.network.trainstats_change = true
     if train.origin_id then
         local origin = devices_runtime.map[train.origin_id] --[[@as Device]]
         if origin and origin.create_count then
-            origin.create_count = origin.create_count - 1
+            origin.network.trainstats_change = true
         end
         train.origin_id = nil
     end
@@ -549,6 +603,9 @@ function yutils.remove_train(train, report_manual)
             station.network.productions[name][station.id] = nil
         end
         station.produced_items = {}
+    end
+    if train.refueler and train.refueler.train == train then
+        train.refueler.train = nil
     end
 
     if train.delivery then yutils.cancel_delivery(train.delivery) end
@@ -689,6 +746,7 @@ function yutils.create_train(ttrain, station)
         front_stock = ttrain.front_stock,
         origin_id = station.id
     }
+    station.network.trainstats_change = true
     trainconf.get_train_composition(train)
     return train
 end
@@ -1237,6 +1295,30 @@ function yutils.load_pattern_cache()
         end
     end
     global.pattern_cache = PatternCache
+end
+
+---@param content {[string]:integer}
+---@param sign integer
+---@return ConstantCombinatorParameters[]
+function yutils.build_parameters(content, sign)
+    ---@type ConstantCombinatorParameters[]
+    local parameters
+    local index = 1
+    if content then
+        parameters = {}
+        for name, count in pairs(content) do
+            local signalid = tools.sprite_to_signal(name)
+            table.insert(parameters, {
+                signal = signalid,
+                count = sign * count,
+                index = index
+            })
+            index = index + 1
+        end
+    else
+        parameters = {}
+    end
+    return parameters
 end
 
 ---@param device Device

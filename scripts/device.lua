@@ -9,7 +9,7 @@ local allocator = require("scripts.allocator")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
 local logger = require("scripts.logger")
-local depotstats = require("scripts.depotstats")
+local trainstats = require("scripts.trainstats")
 
 ------------------------------------------------------
 local device_manager = {}
@@ -62,6 +62,8 @@ local train_count_signal = {
     type = "virtual",
     name = commons.prefix .. "-train_count"
 }
+
+local item_slot_count = settings.startup[prefix .. "-item_slot_count"].value
 
 -----------------------------------------------------
 
@@ -289,7 +291,7 @@ local function new_device(entity, tags)
         device.inactive = dconfig.inactive and 1 or nil
     elseif config_id > 0 then
         dconfig = context.configs[config_id]
-        need_register = false
+        dconfig = tools.table_deep_copy(dconfig)
     end
 
     if not dconfig then
@@ -316,8 +318,9 @@ end
 
 local rail_types = {
     ["straight-rail"] = true,
-    ["curved-rail"] = true
-
+    ["curved-rail"] = true,
+    ["rail-chain-signal"] = true,
+    ["rail-signal"] = true
 }
 
 ---@param entity LuaEntity
@@ -343,6 +346,22 @@ local function on_entity_built(entity, tags)
         devices_runtime:add(device)
     elseif name == commons.se_elevator_name then
         multisurf.add_elevator(entity)
+    elseif entity.type == "train-stop" then
+        if config.auto_rename_station then
+            local name = entity.backer_name
+            local all = entity.surface.get_train_stops { name = name, force = entity.force }
+            if #all == 2 then
+                local index = 1
+                while true do
+                    local new_name = name .. "_" .. index
+                    if #entity.surface.get_train_stops { name = new_name, force = entity.force } == 0 then
+                        entity.backer_name = new_name
+                        break
+                    end
+                    index = index + 1
+                end
+            end
+        end
     end
 end
 
@@ -428,13 +447,18 @@ end
 local entity_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'rail-chain-signal' },
+    { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
+    { filter = "name", name = "train-stop" },
     { filter = "name", name = commons.se_elevator_name }
 }
 
 local entity_destroyed_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'rail-chain-signal' },
+    { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
     { filter = "name", name = "train-stop" },
     { filter = "name", name = commons.se_elevator_name }
@@ -653,9 +677,10 @@ local function process_device(device)
 
     -- depot role
     if role == depot_role then
+
         device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
-        device.parking_penalty = dconfig.parking_penalty
+        device.is_parking = dconfig.is_parking
         if circuit then
             ---@cast circuit -nil
             read_virtual_signals()
@@ -706,19 +731,18 @@ local function process_device(device)
         end
 
         local create_count = allocator.get_create_count(device)
-
-        local stat = depotstats.get(device.network, device.builder_gpattern)
+        local train_count = trainstats.get(device.network, device.builder_gpattern)
 
         ---@type ConstantCombinatorParameters
         local parameters = {
             {
                 index = 1,
                 signal = create_count_signal,
-                count = create_count
+                count = create_count or 0
             }, {
             index = 2,
             signal = train_count_signal,
-            count = stat.used
+            count = train_count or 0
         }
         }
         yutils.set_device_output(device, parameters)
@@ -767,6 +791,8 @@ local function process_device(device)
         device.threshold = dconfig.threshold or config.default_threshold
         device.delivery_penalty = dconfig.delivery_penalty or config.delivery_penalty
         device.combined = dconfig.combined
+        device.reservation = dconfig.reservation
+        device.red_wire_mode = dconfig.red_wire_mode
 
         if red_signals then
             for _, signal_amount in ipairs(red_signals) do
@@ -790,6 +816,7 @@ local function process_device(device)
 
         circuit = device_entity.get_circuit_network(wire_green, circuit_input)
 
+        device.priority_map = nil
         if circuit then
             local green_signals = circuit.signals
             if green_signals then
@@ -810,6 +837,10 @@ local function process_device(device)
                             threshold_map["fluid/" .. name] = count
                         end
                     end
+                end
+                if dconfig.green_wire_as_priority then
+                    device.priority_map = threshold_map
+                    threshold_map = {}
                 end
             end
         end
@@ -904,6 +935,11 @@ local function process_device(device)
                     end
 
                     if device.internal_requests and device.internal_requests[name] then
+                        local production = device.produced_items[name]
+                        if production then
+                            production.provided = 0
+                            yutils.remove_production(production)
+                        end
                         goto skip
                     end
 
@@ -1040,6 +1076,31 @@ local function process_device(device)
                     yutils.remove_production(production)
                     device.produced_items[name] = nil
                 end
+            end
+        end
+
+        if device.red_wire_mode == 2 then
+            local network_mask = device.network_mask
+            local network = device.network
+
+            local items = {}
+            local count = 0
+            for name, pmap in pairs(network.productions) do
+                for _, product in pairs(pmap) do
+                    if band(product.device.network_mask, network_mask) ~= 0 then
+                        items[name] = (items[name] or 0) + (product.provided - product.requested)
+                        count = count + 1
+                        if count >= item_slot_count then
+                            goto end_prod
+                        end
+                    end
+                end
+            end
+            ::end_prod::
+            local parameters = yutils.build_parameters(items, 1)
+            if device.out_red.valid then
+                local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+                cb.parameters = parameters
             end
         end
         return
@@ -1203,5 +1264,31 @@ Runtime.register {
     max_per_run = config.max_per_run,
     refresh_rate = config.reaction_time * 60 / config.nticks
 }
+
+local function factory_organizer_install()
+    if remote.interfaces["factory_organizer"] then
+        remote.add_interface("yet_another_train_manager_move", {
+            ---@param entity LuaEntity
+            ---@return LuaEntity[] ?
+            collect = function(entity)
+                local context = get_context()
+                local device = devices[entity.unit_number]
+                if not device then return end
+
+                local result = {}
+                table.insert(result, device.out_green)
+                table.insert(result, device.out_red)
+                if device.ebuffer then
+                    table.insert(result, device.ebuffer)
+                end
+                return result
+            end
+        })
+        remote.call("factory_organizer", "add_collect_method", commons.device_name, "yet_another_train_manager_move", "collect")
+    end
+end
+
+tools.on_load(factory_organizer_install)
+
 
 return device_manager

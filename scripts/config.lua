@@ -26,6 +26,8 @@ local config = {
     teleport_animation = true,
     teleport_report = false,
     auto_ajust_delivery = true,
+    allow_trainstop_name_routing = true,
+    auto_rename_station = true,
     
     show_train_mask = true,
     gui_train_len = 16,
@@ -43,8 +45,6 @@ local config = {
     fa_train_delay = 60,
     fa_use_stack = false,
     fa_threshold_percent = 50.0,
-
-    default_parking_penalty = 300,
 
     teleport_timeout = 30 * 60,
     teleport_min_distance = 90,

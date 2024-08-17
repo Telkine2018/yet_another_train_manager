@@ -10,7 +10,7 @@ local multisurf = require("scripts.multisurf")
 local allocator = require("scripts.allocator")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
-local pathing = require("scripts.pathing")
+local Pathing = require("scripts.pathing")
 
 local scheduler = {}
 
@@ -27,9 +27,9 @@ local find_train = allocator.find_train
 local band = bit32.band
 
 
-local find_closest_incoming_rail = pathing.find_closest_incoming_rail
-local device_distance = pathing.device_distance
-local train_distance = pathing.train_distance
+local find_closest_incoming_rail = Pathing.find_closest_incoming_rail
+local device_distance = Pathing.device_distance
+local train_distance = Pathing.train_distance
 
 
 local function on_load()
@@ -44,8 +44,12 @@ local get_context = yutils.get_context
 ---@param r1 Request
 ---@param r2 Request
 local function request_compare(r1, r2)
-    if r1.device.priority ~= r2.device.priority then
-        return r1.device.priority > r2.device.priority
+    local d1 = r1.device
+    local p1 = (d1.priority_map and d1.priority_map[r1.name]) or d1.priority
+    local d2 = r2.device
+    local p2 = (d2.priority_map and d2.priority_map[r2.name]) or d2.priority
+    if p1 ~= p2 then
+        return p1 > p2
     end
     return r1.create_tick < r2.create_tick
 end
@@ -57,6 +61,7 @@ end
 ---@return NetworkConnection?
 local function find_provider(request, forbidden, no_surface_change)
     local candidate
+    local candidate_priority
     local candidate_dist
     local device = request.device
     local device_role = device.role
@@ -69,13 +74,16 @@ local function find_provider(request, forbidden, no_surface_change)
         local production_device = production.device
 
         if candidate then
+            local pdevice = production.device
+            local production_priority = (pdevice.priority_map and pdevice.priority_map[production.name]) or pdevice.priority
+
             if dist > candidate_dist then
-                if candidate.priority >= production.device.priority then
+                if candidate_priority >= production_priority then
                     production_device.failcode = 40
                     return
                 end
             else
-                if candidate.priority > production.device.priority then
+                if candidate_priority > production_priority then
                     production_device.failcode = 40
                     return
                 end
@@ -94,8 +102,8 @@ local function find_provider(request, forbidden, no_surface_change)
                 return
             end
             if not train_available_states[train.state] then
-                production_device.failcode = 44
-                request.failcode = 44
+                production_device.failcode = production_device.failcode or 44
+                request.failcode = request.failcode or 44
                 return
             end
             if not train.has_fuel then
@@ -108,14 +116,16 @@ local function find_provider(request, forbidden, no_surface_change)
                 if dist < 0 then return end
 
                 if candidate then
+                    local pdevice = production.device
+                    local production_priority = (pdevice.priority_map and pdevice.priority_map[production.name]) or pdevice.priority
                     if dist > candidate_dist then
-                        if candidate.priority >= production.device.priority then
-                            production_device.failcode = 46
+                        if candidate_priority >= production_priority then
+                            pdevice.failcode = 46
                             return
                         end
                     else
-                        if candidate.priority > production.device.priority then
-                            production_device.failcode = 46
+                        if candidate_priority > production_priority then
+                            pdevice.failcode = 46
                             return
                         end
                     end
@@ -133,6 +143,7 @@ local function find_provider(request, forbidden, no_surface_change)
         local delivery_count = table_size(production_device.deliveries)
         if delivery_count >= 1 then
             if production_device.max_delivery and delivery_count >= production_device.max_delivery then
+                production_device.failcode = 82
                 return
             end
 
@@ -199,6 +210,8 @@ local function find_provider(request, forbidden, no_surface_change)
 
         candidate = production
         candidate_dist = dist
+        local dev = production.device
+        candidate_priority = (dev.priority_map and dev.priority_map[production.name]) or dev.priority
         return true
     end
 
@@ -217,6 +230,8 @@ local function find_provider(request, forbidden, no_surface_change)
 
             if dist > 0 then
                 check_production(production, dist)
+            else
+                request.failcode = 57
             end
         end
         if candidate then
@@ -253,7 +268,7 @@ local function find_provider(request, forbidden, no_surface_change)
             dist = production_device.distance_cache[trainstop.unit_number]
         end
         if not dist then
-            dist = pathing.device_trainstop_distance(production_device, trainstop)
+            dist = Pathing.device_trainstop_distance(production_device, trainstop)
         end
         if dist > 0 then
             check_production(production, dist)
@@ -265,7 +280,7 @@ end
 scheduler.find_provider = find_provider
 
 ---@param delivery Delivery
----@param existing_content table<string, int>
+---@param existing_content table<string, integer>
 function scheduler.create_delivery_schedule(delivery, existing_content)
     local provider = delivery.provider
     local requester = delivery.requester
@@ -320,12 +335,17 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             end
         end
 
-        teleport.add_teleporter(provider.network, teleport_pos,
-            provider.position, records)
+        teleport.add_teleporter(provider.network, teleport_pos, provider.position, records)
 
         local backer_name = provider.trainstop.backer_name
-        local station_list = provider.trainstop.surface.get_train_stops { name = backer_name, force = provider.trainstop.force }
-        if #station_list > 1 then
+        local needed
+        if config.allow_trainstop_name_routing then
+            local station_list = provider.trainstop.surface.get_train_stops { name = backer_name, force = provider.trainstop.force }
+            needed = #station_list > 1
+        else
+            needed = true
+        end
+        if needed then
             table.insert(records, {
                 rail = provider.trainstop.connected_rail,
                 temporary = true,
@@ -333,6 +353,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
                 wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
             })
         end
+
 
         table.insert(records, {
             station = backer_name,
@@ -377,8 +398,14 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
 
 
         local backer_name = requester.trainstop.backer_name
-        local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
-        if #station_list > 1 then
+        local needed
+        if config.allow_trainstop_name_routing then
+            local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
+            needed = #station_list > 1
+        else
+            needed = true
+        end
+        if needed then
             table.insert(records, {
                 rail = requester.trainstop.connected_rail,
                 temporary = true,
@@ -518,8 +545,9 @@ function scheduler.create_payload(request, candidate, train, available_slots)
         local slot_count = math.floor(amount / stack_size)
         if slot_count == 0 then
             slot_count = 1
+        else
+            amount = slot_count * stack_size
         end
-        amount = slot_count * stack_size
         available_slots = available_slots - slot_count
     else
         capacity = fluid_capacity
@@ -557,8 +585,9 @@ function scheduler.create_payload(request, candidate, train, available_slots)
                         local slot_count = math.floor(amount / stack_size)
                         if slot_count == 0 then
                             slot_count = 1
+                        else
+                            amount = slot_count * stack_size
                         end
-                        amount = slot_count * stack_size
                         available_slots = available_slots - slot_count
                     else
                         if fluid_capacity == 0 then
@@ -631,6 +660,10 @@ local function create_delivery(request, candidate, train, content, existing_cont
         scheduler.create_delivery_schedule(delivery, existing_content)
     end
 
+    if device.network.reservations then
+        device.network.reservations[request.name] = nil
+    end
+
     local station = train.depot
     if not train.train.has_path and station then
         local schedule = train.train.schedule
@@ -678,7 +711,7 @@ function scheduler.schedule_feeder_waiting_loading(train, provider)
     local conditions = {
         { type = "inactivity", compare_type = "or", ticks = provider.inactivity_delay * 60 }
     }
-    if (provider.max_load_time) then
+    if (provider.max_load_time and provider.max_load_time > 0) then
         table.insert(conditions, { type = "time", compare_type = "or", ticks = provider.max_load_time * 60 })
     end
     table.insert(records, {
@@ -707,7 +740,17 @@ function scheduler.process_request(request)
 
     request.inqueue = false
     request.failcode = nil
+    request.device.failcode = nil
     if not device.entity or not device.entity.valid then return end
+
+    if device.network.reservations_tick == context.session_tick then
+        if device.network.reservations and device.network.reservations[request.name] then
+            request.failcode = 81
+            return
+        end
+    else
+        device.network.reservations = nil
+    end
 
     if request.cancelled then return end
 
@@ -734,8 +777,20 @@ function scheduler.process_request(request)
     local requested = request.requested - request.provided
     if requested < request.threshold then return end
 
+    if request.device.trainstop.backer_name == "Aluminium plate 1 [item=aluminium-plate] >>" then
+        log("");
+    end
+
     local candidate = find_provider(request)
     if not candidate then
+        if device.reservation then
+            if device.network.reservations_tick == context.session_tick then
+                device.network.reservations[request.name] = true
+            else
+                device.network.reservations = { [request.name] = true }
+                device.network.reservations_tick = context.session_tick
+            end
+        end
         if not request.producer_failed_logged then
             logger.report_producer_notfound(request)
         end
@@ -757,6 +812,7 @@ function scheduler.process_request(request)
     local is_item = string.sub(request.name, 1, 1) == "i"
     if not buffer_feeder_roles[device.role] and not buffer_feeder_roles[candidate_device.role] then
         local patterns = trainconf.intersect_patterns(device.patterns, candidate_device.patterns)
+        candidate_device.failcode = nil
         train = find_train(candidate_device, device.network_mask, patterns, is_item)
         if not train then
             if not request.train_notfound_logged then
@@ -764,7 +820,7 @@ function scheduler.process_request(request)
             end
             table.insert(context.waiting_requests, request)
             request.inqueue = true
-            request.failcode = 60
+            request.failcode = candidate_device.failcode or 60
             return
         end
         ::train_found::
@@ -890,6 +946,7 @@ function scheduler.process(data)
 
         context.request_per_iteration = #context.running_requests / 12
         context.request_iter = 0
+        context.session_tick = GAMETICK
     end
 
     context.request_iter = context.request_iter + context.request_per_iteration

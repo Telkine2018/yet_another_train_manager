@@ -179,5 +179,15 @@ sprite = {
 }
 table.insert(declarations, sprite)
 
+local font= {
+    type = "font",
+    name = prefix .. "-small_font",
+    from = "default-bold",
+    size = 14,
+    border = true,
+    border_color = {0,0,0}
+  }
+  table.insert(declarations, font)
+
 
 data:extend(declarations)

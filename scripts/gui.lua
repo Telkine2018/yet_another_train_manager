@@ -167,16 +167,21 @@ local function create_fields(ftable, device)
         if not active then return end
 
         local value = dconfig[name] or false
-        ftable.add { type = "label", caption = { np(name) } }
+        local label = ftable.add { type = "label", caption = { np(name) } }
         if not tooltip then
             tooltip = ""
         end
+        label.style.top_margin = 3
+        label.style.bottom_margin = 3
+
         local field = ftable.add {
             type = "checkbox",
             name = name,
             state = value,
             tooltip = { tooltip }
         }
+        field.style.top_margin = 3
+        field.style.bottom_margin = 3
     end
 
     ---@param name string
@@ -220,23 +225,58 @@ local function create_fields(ftable, device)
         end
     end
 
+    ---@param name string
+    ---@param active boolean
+    ---@param item_count integer
+    ---@param tooltip string?
+    local function add_dropdown_field(name, active, item_count, tooltip)
+        if not active then return end
+
+        local value = dconfig[name] or 1
+        local label = ftable.add { type = "label", caption = { np(name) } }
+        if not tooltip then
+            tooltip = ""
+        end
+        label.style.top_margin = 3
+        label.style.bottom_margin = 3
+
+        local items = {}
+        for i=1, item_count do
+            table.insert(items, {np(name .. "." .. i)})    
+        end
+
+        local field = ftable.add {
+            type = "drop-down",
+            name = name,
+            tooltip = { tooltip },
+            selected_index = value,
+            items = items
+        }
+        field.style.top_margin = 3
+        field.style.bottom_margin = 3
+    end
+
+
     create_mask("network_mask", use_all_enable[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
 
-    add_numeric_field("priority", has_priority[role], nil, true)
+    add_numeric_field("priority", has_priority[role], np("priority-tooltip"), true)
     add_numeric_field("rpriority", role == defs.device_roles.builder, nil, true)
-    add_numeric_field("max_delivery", use_carry[role])
+    add_numeric_field("max_delivery", use_carry[role], np("max_delivery-tooltip"))
     add_numeric_field("delivery_timeout", use_requester[role] or role == defs.device_roles.feeder)
     add_numeric_field("threshold", use_requester[role])
-    add_numeric_field("locked_slots", use_provider_not_buffer[role])
+    add_numeric_field("locked_slots", use_provider_not_buffer[role], np("locked_slots-tooltip"))
     add_numeric_field("inactivity_delay", use_carry[role], np("inactivity_delay.tooltip"))
     add_numeric_field("max_load_time", role == defs.device_roles.feeder, np("max_load_time.tooltip"))
     add_numeric_field("delivery_penalty", use_provider_not_buffer[role], nil, true)
     add_numeric_field("teleport_range", role == defs.device_roles.teleporter, nil, false)
-    add_numeric_field("parking_penalty", role == defs.device_roles.depot, np("parking_penalty.tooltip"), true)
+    add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"), true)
 
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
     add_boolean_field("no_remove_constraint", role == defs.device_roles.builder, np("no_remove_constraint.tooltip"))
+    add_boolean_field("green_wire_as_priority", use_carry[role], np("green_wire_as_priority.tooltip"))
+    add_dropdown_field("red_wire_mode", use_carry[role], 4, np("red_wire_mode.tooltip"))
+    add_boolean_field("reservation", use_requester[role], np("reservation.tooltip"))
 
     local is_builder = role == defs.device_roles.builder
     if not is_builder then
@@ -436,9 +476,10 @@ end
 
 local qte_field_with = 70
 
+---@param player_index integer
 ---@param request RequestConfig?
 ---@return LocalisedString
-local function get_request_tooltip(request)
+local function get_request_tooltip(player_index, request)
     if not (request and request.name and request.amount and request.amount_unit) then
         return { np("request-item.tooltip") }
     end
@@ -447,9 +488,39 @@ local function get_request_tooltip(request)
         return { np("request-item.tooltip") }
     end
 
+    local player = game.players[player_index]
+    local network = yutils.find_network_base(player.force_index, player.surface.index)
+    ---@type LocalisedString
+    local stock_tooltip = ""
+    if network then
+        local productions = network.productions[request.name]
+        if productions then
+            local count = 0
+            for _, production in pairs(productions) do
+                if not production.device.inactive then
+                    count = count + (production.provided - production.requested)
+                end
+            end
+            stock_tooltip = { np("request-item-stock.tooltip"), tools.comma_value(count) }
+        end
+    end
+
     ---@cast signal -nil
     local count = get_real_count(request.name, request.amount, request.amount_unit, signal.type)
-    return { np("request-item-qty.tooltip"), tools.comma_value(count), "[" .. signal.type .. "=" .. signal.name .. "]" }
+    local name
+    if signal.type == "item" then
+        name = game.item_prototypes[signal.name].localised_name
+    else
+        name = game.fluid_prototypes[signal.name].localised_name
+    end
+
+    return { 
+        np("request-item-qty.tooltip"), 
+        tools.comma_value(count),
+         "[" .. signal.type .. "=" .. signal.name .. "]",
+        { "", "[color=cyan]", name, "[/color]" } ,
+        stock_tooltip
+    }
 end
 
 ---@param flow LuaGuiElement
@@ -487,7 +558,7 @@ end
 ---@param flow LuaGuiElement
 local function update_request_tooltip(flow)
     local request = get_request(flow)
-    local tooltip = get_request_tooltip(request)
+    local tooltip = get_request_tooltip(flow.player_index, request)
     flow.signal.tooltip = tooltip
 end
 
@@ -519,7 +590,7 @@ local function create_request_field(request_table, request)
         type = "choose-elem-button",
         elem_type = "signal",
         name = "signal",
-        tooltip = get_request_tooltip(request)
+        tooltip = get_request_tooltip(flow.player_index, request)
     }
     tools.set_name_handler(signal_field, np("request_signal"))
 
@@ -577,7 +648,7 @@ local function create_request_table(request_flow, dconfig)
 
     local request_table = request_flow.add {
         type = "table",
-        column_count = 3,
+        column_count = 2,
         name = "request_table"
     }
 
@@ -836,13 +907,16 @@ tools.on_gui_click(np("importfa"),
     ---@param e EventData.on_gui_click
     function(e)
         local player = game.players[e.player_index]
-        if not remote.interfaces["factory_analyzer"] then
-            player.print { np("factory-analyzer-not-found") }
-            return
+        ---@type {[string]:number}
+
+        local ingredients
+        if remote.interfaces["factory_analyzer"] then
+            ingredients = remote.call("factory_analyzer", "get_ingredients", e.player_index)
+        end
+        if not ingredients and remote.interfaces["factory_graph"] then
+            ingredients = remote.call("factory_graph", "get_ingredients", e.player_index)
         end
 
-        ---@type {[string]:number}
-        local ingredients = remote.call("factory_analyzer", "get_ingredients", e.player_index)
         if not ingredients then
             player.print { np("no-selection-in-factory-analyzer") }
             return
@@ -921,14 +995,24 @@ local function update_runtime_config(device, player)
     device.patterns = dconfig.patterns or device.scanned_patterns
     device.has_specific_pattern = dconfig.has_specific_pattern
     device.inactive = dconfig.inactive and 1 or nil
+    device.image_index = nil
 
     device.conf_change = true
     if not device.dconfig.requests then
+        if device.internal_requests then
+            for name, _ in pairs(device.internal_requests) do
+                local request = device.requested_items[name]
+                if request then
+                    request.requested = 0
+                end
+            end
+        end
         device.internal_requests = nil
         device.internal_threshold = nil
         return
     end
 
+    local previous_requests = device.internal_requests
     device.internal_requests = nil
     device.internal_threshold = {}
 
@@ -964,6 +1048,17 @@ local function update_runtime_config(device, player)
                 if player then
                     player.print({ "yaltn-messages.threshold_over_request" },
                         { 1, 0, 0 })
+                end
+            end
+        end
+    end
+
+    if previous_requests then
+        for name, _ in pairs(previous_requests) do
+            if not device.internal_requests or not device.internal_requests[name] then
+                local request = device.requested_items[name]
+                if request then
+                    request.requested = 0
                 end
             end
         end
@@ -1032,6 +1127,7 @@ local function save_values(player)
     end
 
 
+    
     ---@param name string
     ---@param values table<string, any>
     local function save_mask(name, values)
@@ -1077,6 +1173,19 @@ local function save_values(player)
         dconfig[name] = value
     end
 
+    ---@param name string
+    local function save_dropdown(name)
+        ---@type LuaGuiElement
+        local field = field_table[name]
+        if not field then
+            dconfig[name] = nil
+            return
+        end
+
+        local value = field.selected_index 
+        dconfig[name] = value
+    end
+
     save_number("priority")
     save_number("rpriority")
     save_number("max_delivery", 0, 100)
@@ -1087,11 +1196,14 @@ local function save_values(player)
     save_number("max_load_time", 1, nil)
     save_number("delivery_penalty", 1, nil)
     save_number("teleport_range", 60, nil)
-    save_number("parking_penalty", nil, nil)
-
+    
+    save_boolean("is_parking")
     save_boolean("station_locked")
+    save_boolean("green_wire_as_priority")
     save_boolean("combined")
     save_boolean("no_remove_constraint")
+    save_dropdown("red_wire_mode")
+    save_boolean("reservation")
 
     save_mask("network_mask", dconfig)
     save_item("builder_fuel_item")

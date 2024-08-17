@@ -6,7 +6,7 @@ local device_name = prefix .. "-device"
 
 local commons = {
 
-    debug_version = 2,
+    debug_version = 5,
     prefix = prefix,
     modpath = modpath,
     device_name = device_name,

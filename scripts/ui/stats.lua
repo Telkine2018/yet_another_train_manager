@@ -177,23 +177,15 @@ function uistats.update(player)
                         stat.time_count = stat.time_count + 1
 
                         local start_tick = delivery.start_tick
-                        local start_load_tick =
-                            delivery.start_load_tick or start_tick
-                        local end_load_tick =
-                            delivery.end_load_tick or start_tick
+                        local start_load_tick = delivery.start_load_tick or start_tick
+                        local end_load_tick = delivery.end_load_tick or start_tick
                         local end_tick = delivery.end_tick
-                        local start_unload_tick =
-                            delivery.start_unload_tick or end_tick
+                        local start_unload_tick = delivery.start_unload_tick or end_tick
                         stat.total = stat.total + (end_tick - start_tick)
-                        stat.to_provider = stat.to_provider +
-                                               (start_load_tick - start_tick)
-                        stat.loading = stat.loading +
-                                           (end_load_tick - start_load_tick)
-                        stat.to_requester = stat.to_requester +
-                                                (start_unload_tick -
-                                                    end_load_tick)
-                        stat.unloading = stat.unloading +
-                                             (end_tick - start_unload_tick)
+                        stat.to_provider = stat.to_provider + (start_load_tick - start_tick)
+                        stat.loading = stat.loading + (end_load_tick - start_load_tick)
+                        stat.to_requester = stat.to_requester + (start_unload_tick - end_load_tick)
+                        stat.unloading = stat.unloading + (end_tick - start_unload_tick)
                     end
                 end
             end
@@ -260,8 +252,7 @@ function uistats.update(player)
         -------- Throughput
         local fthroughput = row.add {
             type = "label",
-            caption = tostring(math.ceil(
-                                   stat.amount / config.log_keeping_delay + 0.5))
+            caption = tostring(math.ceil(stat.amount / config.log_keeping_delay + 0.5))
         }
         fthroughput.style.horizontal_align = "center"
         fthroughput.style.width = header_defs[field_index].width
@@ -272,8 +263,7 @@ function uistats.update(player)
         -------- Total time
         local ftotal = row.add {
             type = "label",
-            caption = stat.time_count and
-                time(math.ceil(stat.total / stat.time_count)) or ""
+            caption = stat.time_count and time(math.ceil(stat.total / stat.time_count)) or ""
         }
         ftotal.style.horizontal_align = "center"
         ftotal.style.width = header_defs[field_index].width
@@ -302,8 +292,7 @@ function uistats.update(player)
         -------- to requester
         local fto_requester = row.add {
             type = "label",
-            caption = stat.time_count and
-                time(math.ceil(stat.to_requester / stat.time_count)) or ""
+            caption = stat.time_count and time(math.ceil(stat.to_requester / stat.time_count)) or ""
         }
         fto_requester.style.horizontal_align = "center"
         fto_requester.style.width = header_defs[field_index].width
@@ -312,8 +301,7 @@ function uistats.update(player)
         -------- unloading
         local funloading = row.add {
             type = "label",
-            caption = stat.time_count and
-                time(math.ceil(stat.unloading / stat.time_count)) or ""
+            caption = stat.time_count and time(math.ceil(stat.unloading / stat.time_count)) or ""
         }
         funloading.style.horizontal_align = "center"
         funloading.style.width = header_defs[field_index].width

@@ -460,6 +460,7 @@ function logger.report_teleport_fail(source_teleport, target_teleport, train)
         train = train,
         
     }
+    add_event(e)
     if config.log_level >= 1 then
         game.forces[target_teleport.force_id].print(logger.event_teleport_fail_to_text(e))
     end

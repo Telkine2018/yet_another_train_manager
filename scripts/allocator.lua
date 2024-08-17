@@ -7,8 +7,7 @@ local spatial_index = require("scripts.spatial_index")
 local yutils = require("scripts.yutils")
 local teleport = require("scripts.teleport")
 local trainconf = require("scripts.trainconf")
-local pathing = require("scripts.pathing")
-
+local Pathing = require("scripts.pathing")
 
 local allocator = {}
 
@@ -92,10 +91,11 @@ function allocator.find_free_depot(network, train, device, is_parking)
                     if not depot.trainstop.connected_rail then
                         goto skip
                     end
-                    d = pathing.device_distance(depot, device)
+                    d = Pathing.device_distance(depot, device)
                 end
 
                 if d < 0 then
+                    depot.failcode = depot.failcode or 80
                     goto skip
                 end
 
@@ -114,19 +114,11 @@ function allocator.find_free_depot(network, train, device, is_parking)
                         end
                     end
                 else
-                    if depot.parking_penalty then
-                        if is_parking then
-                            d = d - depot.parking_penalty
-                            if d < 0 then
-                                d = 0
-                            end
-                        else
-                            d = d + depot.parking_penalty
-                        end
-                    end
-
                     depot_priority = 0
                     if not is_parking then
+                        if depot.is_parking then
+                            goto skip
+                        end
                         depot_priority = depot.priority
                         if min_priority then
                             if min_priority > depot_priority then
@@ -158,85 +150,82 @@ function allocator.find_free_depot(network, train, device, is_parking)
             min_depot.last_used_date = GAMETICK
             return min_depot
         end
-        network = network.connected_network
-        if not network then
-            return nil
-        end
+        local connected_network = network.connected_network
+        if connected_network then
+            local index = Pathing.find_closest_exiting_trainstop(device)
+            if not index then return nil end
 
-        local index = pathing.find_closest_exiting_trainstop(device)
-        if not index then return nil end
-
-        local output = network.connecting_outputs[index]
-        local id = -output.unit_number
-        for _, depot in pairs(network.free_depots) do
-            if depot.train == nil then
-                local d
-                if device.distance_cache then
-                    d = device.distance_cache[id]
-                end
-                if not d then
-                    if not depot.trainstop.connected_rail then
+            local output = connected_network.connecting_outputs[index]
+            local id = -output.unit_number
+            for _, depot in pairs(connected_network.free_depots) do
+                if depot.train == nil then
+                    local d
+                    if device.distance_cache then
+                        d = device.distance_cache[id]
+                    end
+                    if not d then
+                        if not depot.trainstop.connected_rail then
+                            goto skip
+                        end
+                        d = Pathing.rail_device_distance(output, depot)
+                    end
+                    if d < 0 then
                         goto skip
                     end
-                    d = pathing.rail_device_distance(output, depot)
-                end
-                if d < 0 then
-                    goto skip
-                end
-                if depot.role == builder_role then
-                    d = d + builder_penalty
-                end
-                if min_priority then
-                    if min_priority > depot.priority then
-                        depot.failcode = 61
-                        goto skip
-                    elseif min_priority == depot.priority and d > min_d then
-                        depot.failcode = 62
-                        goto skip
+                    if depot.role == builder_role then
+                        d = d + builder_penalty
+                    end
+                    if min_priority then
+                        if min_priority > depot.priority then
+                            depot.failcode = 61
+                            goto skip
+                        elseif min_priority == depot.priority and d > min_d then
+                            depot.failcode = 62
+                            goto skip
+                        end
+                    end
+                    if check_depot(depot) then
+                        min_depot = depot
+                        min_d = d
+                        min_priority = depot.priority
                     end
                 end
-                if check_depot(depot) then
-                    min_depot = depot
-                    min_d = d
-                    min_priority = depot.priority
-                end
+                ::skip::
             end
-            ::skip::
-        end
 
-        if min_depot then
-            min_depot.last_used_date = GAMETICK
-            return min_depot
-        end
-        return nil
-    else
-        local depot_list = {}
-        local goals = {}
-        for _, depot in pairs(network.free_depots) do
-            if depot.trainstop.valid and depot.trainstop.connected_rail and check_depot(depot) then
-                table.insert(depot_list, depot)
-                table.insert(goals, { train_stop = depot.trainstop })
+            if min_depot then
+                min_depot.last_used_date = GAMETICK
+                return min_depot
             end
         end
-        local goal_count = table_size(goals)
-        if goal_count == 0 then
-            return nil
-        elseif goal_count == 1 then
-            return depot_list[1]
-        end
-        local result = game.request_train_path {
-            goals = goals,
-            train = train.train,
-            type = "any-goal-accessible"
-        }
-        if result.found_path then
-            return depot_list[result.goal_index]
-        end
-        return nil
     end
+
+    local depot_list = {}
+    local goals = {}
+    for _, depot in pairs(network.free_depots) do
+        if depot.trainstop.valid and depot.trainstop.connected_rail and check_depot(depot) then
+            table.insert(depot_list, depot)
+            table.insert(goals, { train_stop = depot.trainstop })
+        end
+    end
+    local goal_count = table_size(goals)
+    if goal_count == 0 then
+        return nil
+    elseif goal_count == 1 then
+        return depot_list[1]
+    end
+    local result = game.request_train_path {
+        goals = goals,
+        train = train.train,
+        type = "any-goal-accessible"
+    }
+    if result.found_path then
+        return depot_list[result.goal_index]
+    end
+    return nil
 end
 
-local device_distance = pathing.device_distance
+local device_distance = Pathing.device_distance
 
 ---@param device Device
 ---@param network_mask integer
@@ -258,7 +247,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         return device_distance(candidate, device)
     end
     local f_train_distance = function(train)
-        return pathing.train_distance(train, device)
+        return Pathing.train_distance(train, device)
     end
 
     ---@param candidate Device
@@ -294,7 +283,16 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     d = f_train_distance(train)
                 end
                 if d < 0 then
+                    candidate.failcode = 80
+                    device.failcode = 80
                     goto skip
+                end
+
+                if train.lock_time then
+                    if train.lock_time > GAMETICK then
+                        goto skip
+                    end
+                    train.lock_time = nil
                 end
 
                 if min_dist and
@@ -314,18 +312,23 @@ function allocator.find_train(device, network_mask, patterns, is_item)
 
                 if patterns and not (patterns[train.gpattern] or patterns[train.rpattern]) then
                     candidate.failcode = 22
+                    device.failcode = device.failcode or candidate.failcode
                     goto skip
                 end
 
                 if band(network_mask, train.network_mask) == 0 then
                     candidate.failcode = 23
+                    device.failcode = device.failcode or candidate.failcode
                     goto skip
                 end
 
+                --[[
                 if candidate.inactive then
                     candidate.failcode = 27
+                    device.failcode = device.failcode or candidate.failcode
                     goto skip
                 end
+                --]]
 
                 if not defs.train_available_states[train.state] then
                     goto skip
@@ -401,16 +404,6 @@ function allocator.find_train(device, network_mask, patterns, is_item)
             goto skip_builder
         end
 
-        if patterns and not (patterns[builder.builder_pattern] or patterns[builder.builder_gpattern]) then
-            builder.failcode = 33
-            goto skip_builder
-        end
-
-        if builder.inactive then
-            builder.failcode = 36
-            goto skip_builder
-        end
-
         if is_item ~= nil then
             if is_item then
                 if builder.builder_cargo_count == 0 then
@@ -421,6 +414,16 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip_builder
                 end
             end
+        end
+
+        if patterns and not (patterns[builder.builder_pattern] or patterns[builder.builder_gpattern]) then
+            builder.failcode = 33
+            goto skip_builder
+        end
+
+        if builder.inactive then
+            builder.failcode = 36
+            goto skip_builder
         end
 
         if not allocator.builder_is_available(builder) then
@@ -467,10 +470,14 @@ function allocator.find_train(device, network_mask, patterns, is_item)
 
     -- switch to connected netwok
     network = network.connected_network
-    if not network then return nil end
+    if not network then 
+        device.failcode = device.failcode or 22
+        return nil 
+    end
 
-    local index = pathing.find_closest_incoming_rail(device)
+    local index = Pathing.find_closest_incoming_rail(device)
     if not index then
+        device.failcode = device.failcode or 22
         return nil
     end
 
@@ -480,10 +487,10 @@ function allocator.find_train(device, network_mask, patterns, is_item)
     dst_id = trainstop.unit_number
     dst_position = trainstop.position
     f_effective_distance = function(candidate)
-        return pathing.device_trainstop_distance(candidate, trainstop)
+        return Pathing.device_trainstop_distance(candidate, trainstop)
     end
     f_train_distance = function(train)
-        return pathing.train_trainstop_distance(train, trainstop)
+        return Pathing.train_trainstop_distance(train, trainstop)
     end
     pending_trains = {}
 
@@ -516,6 +523,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         return allocator.builder_create_train(min_builder)
     end
 
+    device.failcode = device.failcode or 22
     return nil
 end
 
@@ -696,6 +704,7 @@ function allocator.builder_create_train(builder)
     local create_count = builder.create_count or 0
     builder.create_count = create_count + 1
     builder.builder_create_count = (builder.builder_create_count or 0) + 1
+    builder.network.trainstats_change = true
     return train
 end
 
@@ -808,6 +817,7 @@ function allocator.builder_delete_train(train, builder)
 
     builder.create_count = (builder.create_count or 0) - 1
     builder.builder_remove_count = (builder.builder_remove_count or 0) + 1
+    builder.network.trainstats_change = true
 end
 
 ---@param train Train
@@ -881,18 +891,18 @@ function allocator.insert_route_to_depot(ttrain, depot)
         temporary = true,
         rail_direction = trainstop.connected_rail_direction,
         wait_conditions = {
-            { type = "time", compare_type = "and", ticks = 1 }
+            { type = "time", compare_type = "and", ticks = 10 }
         }
     })
 
     table.insert(records, index + 1, {
         station = trainstop.backer_name,
         wait_conditions = {
-            { type = "time", compare_type = "and", ticks = 1 }
+            { type = "time", compare_type = "and", ticks = 10 }
         }
     })
 
-    ttrain.schedule = { current = 1, records = records }
+    ttrain.schedule = { current = index, records = records }
 end
 
 ---@param train Train

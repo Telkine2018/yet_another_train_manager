@@ -1,6 +1,9 @@
 local commons = require("scripts.commons")
 local data_util = require("__flib__.data-util")
 
+local default_font_color = {1, 1, 1}
+local prefix = commons.prefix
+
 local empty_checkmark = {
     filename = data_util.empty_image,
     priority = "very-low",
@@ -134,6 +137,9 @@ styles.yatm_table_row_frame_dark = {
     graphical_set = {}
 }
 
+local default_orange_color = {r = 0.98, g = 0.66, b = 0.22}
+
+
 local hovered_label_color = {
     r = 0.5 * (1 + default_orange_color.r),
     g = 0.5 * (1 + default_orange_color.g),
@@ -157,7 +163,6 @@ styles.yatm_selected_label = {
     type = "label_style",
     parent = "yatm_clickable_semibold_label",
     font_color = selected_label_color
-
 }
 
 styles.yatm_default_table = {
@@ -181,13 +186,27 @@ styles.yatm_minimap_label = {
     type = "label_style",
     font = "default-game",
     font_color = default_font_color,
-    size = 90,
+    size = 50,
     vertical_align = "bottom",
     horizontal_align = "right",
     right_padding = 4
 }
 
+styles.yatm_camera_label = {
+    type = "label_style",
+    font = prefix .. "-small_font",
+    height = 15,
+    width = 250,
+    font_color = {0,255,0},
+    right_padding = 4,
+    left_margin = 5,
+    vertical_align = "top",
+    horizontal_align = "left",
+}
+
 styles.yatm_semibold_label = { type = "label_style", font = "default-semibold" }
+
+
 
 for _, suffix in ipairs({ "default", "red", "green", "blue" }) do
     styles["yatm_small_slot_button_" .. suffix] = {
