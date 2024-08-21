@@ -777,10 +777,6 @@ function scheduler.process_request(request)
     local requested = request.requested - request.provided
     if requested < request.threshold then return end
 
-    if request.device.trainstop.backer_name == "Aluminium plate 1 [item=aluminium-plate] >>" then
-        log("");
-    end
-
     local candidate = find_provider(request)
     if not candidate then
         if device.reservation then
