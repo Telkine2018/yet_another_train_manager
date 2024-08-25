@@ -241,8 +241,8 @@ local function create_fields(ftable, device)
         label.style.bottom_margin = 3
 
         local items = {}
-        for i=1, item_count do
-            table.insert(items, {np(name .. "." .. i)})    
+        for i = 1, item_count do
+            table.insert(items, { np(name .. "." .. i) })
         end
 
         local field = ftable.add {
@@ -269,7 +269,7 @@ local function create_fields(ftable, device)
     add_numeric_field("max_load_time", role == defs.device_roles.feeder, np("max_load_time.tooltip"))
     add_numeric_field("delivery_penalty", use_provider_not_buffer[role], nil, true)
     add_numeric_field("teleport_range", role == defs.device_roles.teleporter, nil, false)
-    add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"), true)
+    add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"))
 
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
@@ -514,11 +514,11 @@ local function get_request_tooltip(player_index, request)
         name = game.fluid_prototypes[signal.name].localised_name
     end
 
-    return { 
-        np("request-item-qty.tooltip"), 
+    return {
+        np("request-item-qty.tooltip"),
         tools.comma_value(count),
-         "[" .. signal.type .. "=" .. signal.name .. "]",
-        { "", "[color=cyan]", name, "[/color]" } ,
+        "[" .. signal.type .. "=" .. signal.name .. "]",
+        { "", "[color=cyan]", name, "[/color]" },
         stock_tooltip
     }
 end
@@ -672,19 +672,23 @@ tools.on_named_event(np("request_signal"), defines.events.on_gui_elem_changed,
         if not (element and element.valid) then return end
         local item = element.elem_value
         local flow = element.parent
-        local request_table = flow.parent
-        local index = tools.index_of(request_table.children, flow)
-        if index == #request_table.children then
-            if item then
-                create_request_field(request_table, nil)
-            end
-        else
-            if not item then
-                flow.destroy()
-                return
+        if flow then
+            local request_table = flow.parent
+            if request_table then
+                local index = tools.index_of(request_table.children, flow)
+                if index == #request_table.children then
+                    if item then
+                        create_request_field(request_table, nil)
+                    end
+                else
+                    if not item then
+                        flow.destroy()
+                        return
+                    end
+                end
+                update_request_tooltip(flow)
             end
         end
-        update_request_tooltip(flow)
     end)
 
 tools.on_named_event(np("amount"), defines.events.on_gui_text_changed,
@@ -710,6 +714,7 @@ end
 ---@return boolean?
 local function get_unit_selection(element)
     local flow = element.parent
+    ---@cast flow -nil
     local signal = flow["signal"]
     local elem_value = signal.elem_value
     local include_cargo, include_fluid
@@ -918,7 +923,7 @@ tools.on_gui_click(np("importfa"),
         end
 
         if not ingredients then
-            player.print { np("no-selection-in-factory-analyzer") }
+            player.print({ np("no-selection-in-factory-analyzer") }, commons.print_settings)
             return
         end
 
@@ -1047,7 +1052,7 @@ local function update_runtime_config(device, player)
                 threshold_count then
                 if player then
                     player.print({ "yaltn-messages.threshold_over_request" },
-                        { 1, 0, 0 })
+                        { color = { 1, 0, 0 }, game_state = false, skip = defines.print_skip.if_visible })
                 end
             end
         end
@@ -1072,6 +1077,10 @@ local function update_runtime_config(device, player)
         local red_input = device_manager.get_red_input(device)
         local cb = red_input.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
         cb.parameters = red_signals
+    end
+
+    if tools.tracing then
+        tools.debug("yutils.update_runtime_config() ")
     end
 end
 
@@ -1127,7 +1136,7 @@ local function save_values(player)
     end
 
 
-    
+
     ---@param name string
     ---@param values table<string, any>
     local function save_mask(name, values)
@@ -1182,7 +1191,7 @@ local function save_values(player)
             return
         end
 
-        local value = field.selected_index 
+        local value = field.selected_index
         dconfig[name] = value
     end
 
@@ -1196,7 +1205,7 @@ local function save_values(player)
     save_number("max_load_time", 1, nil)
     save_number("delivery_penalty", 1, nil)
     save_number("teleport_range", 60, nil)
-    
+
     save_boolean("is_parking")
     save_boolean("station_locked")
     save_boolean("green_wire_as_priority")

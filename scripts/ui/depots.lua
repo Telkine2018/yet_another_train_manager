@@ -225,7 +225,7 @@ function uidepots.update(player)
         -------- Last use date
         local flast_use_date = row.add {
             type = "label",
-            caption = stat.last_use_date and flib_format.time(GAMETICK - stat.last_use_date) or "",
+            caption = stat.last_use_date and flib_format.time(game.tick - stat.last_use_date) or "",
             style = "yatm_clickable_semibold_label"
         }
         if stat.last_use_id then

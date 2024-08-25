@@ -2,6 +2,7 @@ local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local Runtime = require("scripts.runtime")
 local pathingd = require("scripts.pathingd")
+local config = require("scripts.config")
 
 local pathing = {}
 
@@ -228,6 +229,7 @@ function pathing.find_closest_exiting_trainstop(device)
 end
 
 local function clear_cache()
+    if config.disabled then return end
     local surfaces_to_clear = global.surfaces_to_clear
     if surfaces_to_clear then
         for _, device in pairs(devices_runtime.map) do

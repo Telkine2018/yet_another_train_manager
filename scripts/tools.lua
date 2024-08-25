@@ -1,6 +1,8 @@
 local tools = {}
-local log_index = 1
-local tracing = true
+local tracing = false
+
+tools.tracing = tracing
+tools.trace_console = false
 
 ---@param msg LocalisedString?
 function tools.print(msg)
@@ -8,19 +10,34 @@ function tools.print(msg)
     log(msg)
 end
 
+local print_settings = { game_state = false, skip = defines.print_skip.never }
+
+local log_index = 1
+
 ---@param msg LocalisedString?
 local function debug(msg)
     if not tracing then return end
 
     if not msg then return end
 
-    if type(msg) == "string" then
-        msg = "[" .. log_index .. "] " .. msg
+    local time
+    if game then
+        time = game.tick
     else
-        table.insert(msg, 2, "[" .. log_index .. "] ")
+        time = log_index
     end
+
+    if type(msg) == "string" then
+        msg = "[" .. time .. "] " .. msg
+    else
+        table.insert(msg, 2, "[" .. time .. "] ")
+    end
+
     log_index = log_index + 1
-    tools.print(msg)
+    log(msg)
+    if tools.trace_console then
+        game.print(msg, print_settings)
+    end
 end
 
 tools.debug = debug
@@ -31,14 +48,17 @@ local function cdebug(cond, msg) if cond then debug(msg) end end
 
 tools.cdebug = cdebug
 
----@param trace boolean
-function tools.set_tracing(trace) tracing = trace end
+---@param value boolean
+function tools.set_tracing(value) 
+    tracing = value 
+    tools.tracing = value
+end
 
 function tools.is_tracing() return tracing end
 
 ---@param o any
-function tools.strip(o) 
-    local s = string.gsub(serpent.block(o), "%s", "") 
+function tools.strip(o)
+    local s = string.gsub(serpent.block(o), "%s", "")
     return s
 end
 
@@ -318,7 +338,7 @@ function tools.on_load(handler)
     if on_load_handlers then
         table.insert(on_load_handlers, handler)
     else
-        on_load_handlers = {handler}
+        on_load_handlers = { handler }
         script.on_load(on_load_handler)
     end
 end
@@ -351,9 +371,9 @@ local configuration_changed_handlers
 ---@param handler fun(c:ConfigurationChangedData)
 function tools.on_configuration_changed(handler)
     if not configuration_changed_handlers then
-        configuration_changed_handlers = {handler}
+        configuration_changed_handlers = { handler }
         script.on_configuration_changed(function(data)
-            for _,f_handlers in pairs(configuration_changed_handlers) do
+            for _, f_handlers in pairs(configuration_changed_handlers) do
                 f_handlers(data)
             end
         end)
@@ -376,13 +396,13 @@ function tools.on_debug_init(f)
     else
         on_debug_init_handler = f
         tools.on_event(defines.events.on_tick,
-        ---@param e EventData.on_tick
+            ---@param e EventData.on_tick
             function(e)
-            if (on_debug_init_handler) then
-                on_debug_init_handler(e)
-                on_debug_init_handler = nil
-            end
-        end)
+                if (on_debug_init_handler) then
+                    on_debug_init_handler(e)
+                    on_debug_init_handler = nil
+                end
+            end)
     end
 end
 
@@ -664,7 +684,7 @@ end
 
 local gmatch = string.gmatch
 
----@param sprite string
+---@param sprite string?
 ---@return SignalID?
 function tools.sprite_to_signal(sprite)
     if not sprite then return nil end
@@ -706,18 +726,18 @@ local function check_signal(type, name)
 end
 
 ---@param sprite string?
+---@param default string?
 ---@return string?
-function tools.check_sprite(sprite)
+function tools.check_sprite(sprite, default)
     if not sprite then return nil end
     local signal = tools.sprite_to_signal(sprite)
     ---@cast signal -nil
     if check_signal(signal.type, signal.name) then
         return sprite
     else
-        return nil
+        return default
     end
 end
-
 
 --- Find dimension of an entity
 ---@param master LuaEntity
@@ -751,12 +771,14 @@ function tools.destroy_entities(master, entity_names)
     for _, e in pairs(entities) do if e.valid then e.destroy() end end
 end
 
----@param index integer
+---@param index integer | defines.train_state
 ---@param base table<string, integer>
 ---@return string
 function tools.get_constant_name(index, base)
-    for name, i in pairs(base) do if i == index then return name end end
-    return "[unknown:" .. index .. "]"
+    if base then
+        for name, i in pairs(base) do if i == index then return name end end
+    end
+    return  tostring(index)
 end
 
 ------------------------------------------------
@@ -934,8 +956,7 @@ end
 function tools.trim(s)
     if not s then return "" end
     return s:match "^%s*(.-)%s*$"
- end
-
+end
 
 ---@param text string?
 ---@return number?

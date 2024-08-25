@@ -6,7 +6,7 @@ local device_name = prefix .. "-device"
 
 local commons = {
 
-    debug_version = 5,
+    debug_version = 6,
     prefix = prefix,
     modpath = modpath,
     device_name = device_name,
@@ -28,6 +28,8 @@ local commons = {
     event_manual = 11,
 
     teleport_electric_buffer_size = 1000*1000*1000,
+
+    print_settings = { game_state = false, skip = defines.print_skip.if_redundant },
 
     se_elevator_name = "se-space-elevator",
     se_elevator_trainstop_name = "se-space-elevator-train-stop",

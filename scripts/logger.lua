@@ -30,12 +30,12 @@ local function add_event(e)
     local context = logger.get_context()
     local id = context.event_id
     e.id = id
-    e.time = GAMETICK
+    e.time = game.tick
     context.event_id = id + 1
     context.event_log[id] = e
 
     id = context.min_log_id
-    local mintime = GAMETICK - config.log_keeping_delay * 60
+    local mintime = e.time - config.log_keeping_delay * 60
     while   id < context.event_id and
             (not context.event_log[id] 
             or context.event_log[id].time < mintime) do
@@ -146,7 +146,7 @@ logger.request_to_text = request_to_text
 
 ---@param e LogEvent
 ---@param msg LocalisedString
-local function print(e, msg) game.forces[e.force_id].print(msg) end
+local function print(e, msg) game.forces[e.force_id].print(msg, commons.print_settings) end
 
 ---@param e LogEvent
 ---@return LocalisedString
@@ -313,7 +313,7 @@ function logger.report_delivery_creation(delivery)
     }
     add_event(e)
     if config.log_level >= 2 then
-        game.forces[delivery.requester.force_id].print(logger.event_delivery_creation_to_text(e))
+        game.forces[delivery.requester.force_id].print(logger.event_delivery_creation_to_text(e), commons.print_settings)
     end
 end
 
@@ -342,7 +342,7 @@ function logger.report_delivery_completion(delivery)
     }
     add_event(e)
     if config.log_level >= 2 then
-        game.forces[delivery.requester.force_id].print(logger.event_delivery_completion_to_text(e))
+        game.forces[delivery.requester.force_id].print(logger.event_delivery_completion_to_text(e), commons.print_settings)
     end
 end
 
@@ -426,7 +426,7 @@ function logger.report_teleportation(source_teleport, target_teleport, train)
     }
     add_event(e)
     if config.log_level >= 2 then
-        game.forces[source_teleport.force_id].print(logger.event_teleportation_to_text(e))
+        game.forces[source_teleport.force_id].print(logger.event_teleportation_to_text(e), commons.print_settings)
     end
 end
 
@@ -462,7 +462,7 @@ function logger.report_teleport_fail(source_teleport, target_teleport, train)
     }
     add_event(e)
     if config.log_level >= 1 then
-        game.forces[target_teleport.force_id].print(logger.event_teleport_fail_to_text(e))
+        game.forces[target_teleport.force_id].print(logger.event_teleport_fail_to_text(e), commons.print_settings)
     end
 end
 
@@ -494,7 +494,7 @@ function logger.report_manual(train)
     }
     
     if config.log_level >= 1 then
-        game.forces[e.force_id].print(logger.event_manual_to_text(e))
+        game.forces[e.force_id].print(logger.event_manual_to_text(e), commons.print_settings)
     end
 end
 

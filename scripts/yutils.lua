@@ -112,8 +112,14 @@ local function on_configuration_changed(context)
         end
     end
     yutils.init_se(context)
+    global.units_cache_map = nil
+    global.units_cache = nil
     global.debug_version = commons.debug_version
-    game.print { "yaltn-device.update-message" }
+    for _, player in pairs((game.players)) do
+        local vars = tools.get_vars(player)
+        vars.ui_progress = nil
+    end
+    game.print({ "yaltn-device.update-message" }, commons.print_settings)
 end
 
 ---@return Context
@@ -190,12 +196,13 @@ function yutils.fix_device_internals(device)
 end
 
 function yutils.purge_config()
+    if config.disabled then return end
     local context = yutils.get_context()
     local to_remove = {}
     local limit_date = game.tick - 60 * 7200
     local configs = context.configs
-    for id, config in pairs(configs) do
-        if config.remove_tick and config.remove_tick < limit_date then
+    for id, device_config in pairs(configs) do
+        if device_config.remove_tick and device_config.remove_tick < limit_date then
             table.insert(to_remove, id)
         end
     end
@@ -431,12 +438,17 @@ end
 
 ---@param request Request
 function yutils.add_request(request)
+
     local device = request.device
     local name = request.name
 
     if request.inqueue then return end
 
     if device.inactive then return end
+
+    if tools.tracing then
+        tools.debug("yutils.add_request: " .. request.name .. "=" .. request.requested)
+    end
 
     request.inqueue = true
     request.cancelled = false
@@ -906,7 +918,7 @@ function yutils.read_train_internals(train)
     if not train.is_empty then
         log("not empty train")
     end
-    train.refresh_tick = GAMETICK
+    train.refresh_tick = game.tick
 end
 
 local black = commons.colors.black
@@ -1016,9 +1028,10 @@ function yutils.register_se() end
 ---@param train Train
 ---@return boolean
 function yutils.is_train_stuck(train)
+    local gametick = game.tick
     if not train.timeout_tick or not train.timeout_pos then return false end
 
-    if not train.timeout_pos or train.timeout_tick >= GAMETICK then
+    if not train.timeout_pos or train.timeout_tick >= gametick then
         return false
     end
 
@@ -1027,7 +1040,7 @@ function yutils.is_train_stuck(train)
         return true
     end
     train.timeout_pos = position
-    train.timeout_tick = GAMETICK + train.timeout_delay
+    train.timeout_tick = gametick + train.timeout_delay
     return false
 end
 
@@ -1060,6 +1073,7 @@ yutils.get_train_content = get_train_content
 ---@param train Train
 function yutils.update_production_from_content(device, train)
     local train_content = get_train_content(train)
+    local gametick = game.tick
 
     for name, count in pairs(train_content) do
         local production = device.produced_items[name]
@@ -1071,7 +1085,7 @@ function yutils.update_production_from_content(device, train)
                 requested = 0,
                 provided = count,
                 device = device,
-                create_tick = GAMETICK,
+                create_tick = gametick,
                 priority = device.priority,
                 position = device.position
             }

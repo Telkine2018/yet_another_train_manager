@@ -26,6 +26,8 @@ local buffer_feeder_roles = defs.buffer_feeder_roles
 local find_train = allocator.find_train
 local band = bit32.band
 
+local debug = tools.debug
+
 
 local find_closest_incoming_rail = Pathing.find_closest_incoming_rail
 local device_distance = Pathing.device_distance
@@ -513,6 +515,8 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
     end
 
     local schedule = { current = 1, records = records }
+
+    -- schedule = { current = 1, records = { { station = "Temp", wait_conditions = { { type = "empty", compare_type = "and" } } } } }
     train.train.schedule = schedule
 end
 
@@ -622,16 +626,21 @@ local create_payload = scheduler.create_payload
 ---@param existing_content table<string, integer>
 ---@return Delivery
 local function create_delivery(request, candidate, train, content, existing_content)
+
+    if tools.tracing then
+        debug("create_delivery:" .. request.name .. "="  .. request.requested)
+    end
     local device = request.device
     local context = get_context()
     local delivery_id = context.delivery_id
+    local gametick = game.tick
     ---@type Delivery
     local delivery = {
         content = content,
         provider = candidate.device,
         requester = request.device,
         train = train,
-        start_tick = GAMETICK,
+        start_tick = gametick,
         id = delivery_id,
         combined_delivery = train.delivery
     }
@@ -641,11 +650,11 @@ local function create_delivery(request, candidate, train, content, existing_cont
     logger.report_delivery_creation(delivery)
 
     train.timeout_delay = (device.delivery_timeout or config.delivery_timeout) * 60
-    train.timeout_tick = GAMETICK + train.timeout_delay
+    train.timeout_tick = gametick + train.timeout_delay
     train.timeout_pos = train.front_stock.position
     train.active_reported = nil
     request.device.deliveries[train.id] = delivery
-    request.create_tick = GAMETICK
+    request.create_tick = gametick
     candidate.device.deliveries[train.id] = delivery
     train.delivery = delivery
     train.last_delivery = delivery
@@ -737,6 +746,10 @@ end
 function scheduler.process_request(request)
     local device = request.device
     local context = get_context()
+
+    if tools.tracing then
+        tools.debug("scheduler.process_request: " .. request.name .. "=" .. request.requested)
+    end
 
     request.inqueue = false
     request.failcode = nil
@@ -920,11 +933,14 @@ function scheduler.process_request(request)
     end
 
     create_delivery(request, candidate, train, content, existing_content)
+
+    if tools.tracing then
+        debug("create_delivery: request=" .. request.name .. ",count=" .. request.requested)
+    end
 end
 
 ---@param data NthTickEventData
 function scheduler.process(data)
-    GAMETICK = data.tick
     local context = get_context()
     if config.disabled then return end
 
@@ -942,7 +958,10 @@ function scheduler.process(data)
 
         context.request_per_iteration = #context.running_requests / 12
         context.request_iter = 0
-        context.session_tick = GAMETICK
+        context.session_tick = game.tick
+        if tools.tracing then
+            tools.debug("scheduler.process: (context.running_requests)")
+        end
     end
 
     context.request_iter = context.request_iter + context.request_per_iteration

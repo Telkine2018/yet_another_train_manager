@@ -173,7 +173,7 @@ end
 -----------------------------------------------------
 
 ---@param entity LuaEntity
----@param wire integer
+---@param wire defines.wire_type
 ---@return LuaEntity
 local function create_cc(entity, wire)
     local cc = entity.surface.create_entity {
@@ -193,7 +193,7 @@ local function create_cc(entity, wire)
 end
 
 ---@param entity LuaEntity
----@param wire integer
+---@param wire defines.wire_type
 ---@return LuaEntity
 local function create_input(entity, wire)
     local input = entity.surface.create_entity {
@@ -677,7 +677,6 @@ local function process_device(device)
 
     -- depot role
     if role == depot_role then
-
         device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
         device.is_parking = dconfig.is_parking
@@ -697,7 +696,7 @@ local function process_device(device)
         if train then
             train.network_mask = device.network_mask
             if monitor_train_states[train.state] then
-                if (GAMETICK - train.refresh_tick) >= fuel_refresh_delay then
+                if (game.tick - train.refresh_tick) >= fuel_refresh_delay then
                     yutils.check_refuel(train)
                 end
                 train.timeout_tick = nil
@@ -871,7 +870,7 @@ local function process_device(device)
         end
 
         local default_threshold = device.threshold
-        local tick = GAMETICK
+        local tick = game.tick
 
         if provider_requester_roles[role] then
             local is_max_delivery = device.max_delivery and
@@ -912,7 +911,7 @@ local function process_device(device)
                             provided = 0,
                             threshold = threshold,
                             device = device,
-                            create_tick = GAMETICK
+                            create_tick = tick
                         }
                         device.requested_items[name] = request
                         if count < threshold then
@@ -1003,7 +1002,7 @@ local function process_device(device)
                             provided = 0,
                             threshold = threshold,
                             device = device,
-                            create_tick = GAMETICK
+                            create_tick = tick
                         }
                         device.requested_items[name] = request
 
@@ -1020,7 +1019,7 @@ local function process_device(device)
             end
 
             if train and monitor_train_states[train.state] and
-                (GAMETICK - train.refresh_tick) >= fuel_refresh_delay then
+                (tick - train.refresh_tick) >= fuel_refresh_delay then
                 yutils.check_refuel(train)
                 device.train.timeout_tick = nil
             end
@@ -1142,16 +1141,18 @@ local function process_device(device)
         local name = device.trainstop.backer_name
         for _, train in pairs(trains) do
             local schedule = train.schedule
-            local current = schedule.current
-            local index = 1
-            for _, r in pairs(schedule.records) do
-                if r.station == name then
-                    if index >= current then
-                        count = count + 1
+            if schedule then
+                local current = schedule.current
+                local index = 1
+                for _, r in pairs(schedule.records) do
+                    if r.station == name then
+                        if index >= current then
+                            count = count + 1
+                        end
+                        break
                     end
-                    break
+                    index = index + 1
                 end
-                index = index + 1
             end
         end
         local parameters = {
@@ -1201,15 +1202,17 @@ tools.on_event(defines.events.on_entity_renamed,
 
         for _, train in pairs(train_set) do
             local schedule = train.schedule
-            local records = schedule.records
-            local need_refresh
-            for _, record in pairs(records) do
-                if record.station == e.old_name then
-                    record.station = entity.backer_name
-                    need_refresh = true
+            if schedule then
+                local records = schedule.records
+                local need_refresh
+                for _, record in pairs(records) do
+                    if record.station == e.old_name then
+                        record.station = entity.backer_name
+                        need_refresh = true
+                    end
                 end
+                if need_refresh then train.schedule = schedule end
             end
-            if need_refresh then train.schedule = schedule end
         end
     end)
 

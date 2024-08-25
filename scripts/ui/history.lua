@@ -274,8 +274,9 @@ tools.on_named_event(np("time"), defines.events.on_gui_hover, --
                 ---@cast delivery -nil
 
                 if delivery.end_tick then
-                    local start_tick = delivery.start_tick or GAMETICK
-                    local end_tick = delivery.end_tick or GAMETICK
+                    local gametick = game.tick
+                    local start_tick = delivery.start_tick or gametick
+                    local end_tick = delivery.end_tick or gametick
                     local start_load_tick = delivery.start_load_tick or start_tick
                     local end_load_tick = delivery.end_load_tick or start_load_tick
                     local start_unload_tick = delivery.start_unload_tick or end_load_tick

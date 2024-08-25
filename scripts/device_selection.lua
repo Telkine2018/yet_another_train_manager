@@ -7,6 +7,7 @@ local yutils = require("scripts.yutils")
 local allocator = require("scripts.allocator")
 local trainconf = require("scripts.trainconf")
 local Pathing = require("scripts.pathing")
+local config = require("scripts.config")
 
 local device_selection = {}
 
@@ -404,6 +405,7 @@ local function on_selected_entity_changed(e)
 end
 
 local function scan_players()
+    if config.disabled then return end
     for _, player in pairs(game.players) do
         show_selected(player, player.selected)
     end

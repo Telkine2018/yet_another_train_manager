@@ -147,7 +147,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
         end
 
         if min_depot then
-            min_depot.last_used_date = GAMETICK
+            min_depot.last_used_date = game.tick
             return min_depot
         end
         local connected_network = network.connected_network
@@ -194,7 +194,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
             end
 
             if min_depot then
-                min_depot.last_used_date = GAMETICK
+                min_depot.last_used_date = game.tick
                 return min_depot
             end
         end
@@ -289,7 +289,7 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                 end
 
                 if train.lock_time then
-                    if train.lock_time > GAMETICK then
+                    if train.lock_time > game.tick then
                         goto skip
                     end
                     train.lock_time = nil
@@ -457,9 +457,10 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         end
     end
     if min_train then
-        min_train.last_use_date = GAMETICK
+        local gametick = game.tick
+        min_train.last_use_date = gametick
         if min_train.depot then
-            min_train.depot.last_used_date = GAMETICK
+            min_train.depot.last_used_date = gametick
         end
         return min_train
     end
@@ -512,9 +513,10 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         end
     end
     if min_train then
-        min_train.last_use_date = GAMETICK
+        local gametick = game.tick
+        min_train.last_use_date = gametick
         if min_train.depot then
-            min_train.depot.last_used_date = GAMETICK
+            min_train.depot.last_used_date = gametick
         end
         return min_train
     end
@@ -735,6 +737,7 @@ function allocator.builder_compute_conf(builder)
     builder.builder_fuel_count = fuel_count
 
     local rail = builder.trainstop.connected_rail
+    if not rail then return false end
     local pos = rail.position
     local direction = builder.trainstop.direction
     local disp = builder_directions[direction]
@@ -881,6 +884,7 @@ end
 ---@param depot Device
 function allocator.insert_route_to_depot(ttrain, depot)
     local schedule = ttrain.schedule
+    if not schedule then return end
     local records = schedule.records
     depot.freezed = false
     local index = schedule.current

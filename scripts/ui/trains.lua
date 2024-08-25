@@ -231,7 +231,7 @@ function uitrains.update(player)
         -- last used date
         local flast_use_date = row.add {
             type = "label",
-            caption = flib_format.time(GAMETICK - (train.last_use_date or 0))
+            caption = flib_format.time(game.tick - (train.last_use_date or 0))
         }
         flast_use_date.style.horizontal_align = "center"
         flast_use_date.style.width = header_defs[field_index].width

@@ -73,6 +73,14 @@ function uiframe.hide(player)
 end
 
 ---@param player LuaPlayer
+local function get_uiprogress(player)
+    local frame = get_frame(player)
+    if not frame then return nil end
+    return tools.get_child(frame, "ui_progress")
+end
+
+
+---@param player LuaPlayer
 local function open(player)
     local frame = get_frame(player)
     if frame then
@@ -129,14 +137,13 @@ local function open(player)
     local progress = titleflow.add {
         type = "progressbar",
         value = 0,
-        name = "progress",
+        name = "ui_progress",
         direction = "vertical"
     }
     progress.style.color = { 0, 1, 0, 1 }
     progress.style.font_color = { 0, 0, 0, 1 }
     progress.style.width = 50
     progress.style.bar_width = 21
-    vars.ui_progress = progress
 
     titleflow.add {
         type = "sprite-button",
@@ -392,31 +399,44 @@ function uiframe.get_surface_names(player)
     return items, index
 end
 
+---@param player LuaPlayer
+local function create_button(player)
+    close(player)
+
+    local button_flow = mod_gui.get_button_flow(player)
+    local button_name = prefix .. ".openui"
+    if button_flow[button_name] then
+        button_flow[button_name].destroy()
+    end
+
+    local tech =    player.force.technologies[commons.device_name]
+                or  player.force.technologies["nullius-" .. commons.device_name]
+    if tech and tech.researched then
+        local button = button_flow.add {
+            type = "sprite-button",
+            name = button_name,
+            sprite = prefix .. "_on_off",
+            tooltip = { np("on_off_tooltip") },
+            style = "tool_button"
+        }
+        button.style.width = 40
+        button.style.height = 40
+    end
+
+end
+
 local function create_player_buttons()
     for _, player in pairs(game.players) do
-        close(player)
-
-        local button_flow = mod_gui.get_button_flow(player)
-        local button_name = prefix .. ".openui"
-        if button_flow[button_name] then
-            button_flow[button_name].destroy()
-        end
-
-        local tech =    player.force.technologies[commons.device_name]
-                    or  player.force.technologies["nullius-" .. commons.device_name]
-        if tech and tech.researched then
-            local button = button_flow.add {
-                type = "sprite-button",
-                name = button_name,
-                sprite = prefix .. "_on_off",
-                tooltip = { np("on_off_tooltip") },
-                style = "tool_button"
-            }
-            button.style.width = 40
-            button.style.height = 40
-        end
+        create_button(player)
     end
 end
+
+tools.on_event(defines.events.on_player_joined_game, 
+---@param e EventData.on_player_joined_game
+function (e)
+    local player = game.players[e.player_index]
+    create_button(player)
+end)
 
 tools.on_gui_click(prefix .. ".openui", ---@param e EventData.on_gui_click
     function(e)
@@ -466,6 +486,7 @@ tools.on_named_event(np("refresh_rate"),
 local refresh_delay = { 0, 2 * 60, 5 * 60, 10 * 60, 30 * 60 }
 
 tools.on_nth_tick(60, function(e)
+    if config.disabled then return end
     if not config.ui_autoupdate then return end
     if not global.players then return end
 
@@ -486,11 +507,11 @@ tools.on_nth_tick(60, function(e)
             uiframe.update(player)
             refresh_tick = tick + refresh_delay[refresh_rate]
             vars.ui_refresh_tick = refresh_tick
-            local progress = vars.ui_progress
-            if progress.valid then progress.value = 1 end
+            local progress = get_uiprogress(player)
+            if progress and progress.valid then progress.value = 1 end
         else
-            local progress = vars.ui_progress
-            if progress.valid then 
+            local progress = get_uiprogress(player)
+            if progress and progress.valid then 
                 progress.value = (refresh_delay[refresh_rate] - (refresh_tick - tick)) / refresh_delay[refresh_rate]
             end
         end
