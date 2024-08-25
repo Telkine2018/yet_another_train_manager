@@ -85,8 +85,10 @@ function yutils.convert_mask_to_pattern(context)
 end
 
 local function on_configuration_changed(context)
-    is_configuration_changed = true
 
+    Runtime.initialize()
+    
+    is_configuration_changed = true
     if not context.session_tick then
         context.session_tick = -1
     end
