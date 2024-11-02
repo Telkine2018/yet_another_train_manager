@@ -23,6 +23,8 @@ local devices_runtime
 
 local remove_device
 
+local wire_connector_id = defines.wire_connector_id
+
 local default_network_mask = config.default_network_mask
 
 local set_device_image = yutils.set_device_image
@@ -54,14 +56,8 @@ local train_refresh_delay = 120
 local fuel_refresh_delay = 1200
 
 
-local create_count_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-create_count"
-}
-local train_count_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-train_count"
-}
+local create_count_signal = tools.build_virtual_signal(commons.prefix .. "-create_count")
+local train_count_signal = tools.build_virtual_signal(commons.prefix .. "-train_count")
 
 local item_slot_count = settings.startup[prefix .. "-item_slot_count"].value
 
@@ -173,24 +169,27 @@ end
 -----------------------------------------------------
 
 ---@param entity LuaEntity
----@param wire defines.wire_type
+---@param cc_connector_id defines.wire_connector_id
+---@param device_connector_id defines.wire_connector_id
 ---@return LuaEntity
-local function create_cc(entity, wire)
+local function create_cc(entity, cc_connector_id, device_connector_id)
     local cc = entity.surface.create_entity {
-        name = commons.cc_name,
+        name = entity.name .. '-cc',
         position = entity.position,
         force = entity.force,
         create_build_effect_smoke = false
     }
     ---@cast cc -nil
-    entity.connect_neighbour {
-        wire = wire,
-        target_entity = cc,
-        source_circuit_id = defines.circuit_connector_id.combinator_output
-    }
+    local cb = cc.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
+    if cb.sections_count == 0 then cb.add_section("") end
+
+    local cc_connector = cc.get_wire_connector(cc_connector_id, true)
+    local device_connector = entity.get_wire_connector(device_connector_id, true)
+    cc_connector.connect_to(device_connector, false)
     cc.destructible = false
     return cc
 end
+
 
 ---@param entity LuaEntity
 ---@param wire defines.wire_type
@@ -231,8 +230,8 @@ end
 ---@param device Device
 local function create_ccs(device)
     local entity = device.entity
-    device.out_red = create_cc(entity, defines.wire_type.red)
-    device.out_green = create_cc(entity, defines.wire_type.green)
+    device.out_red = create_cc(entity, wire_connector_id.circuit_red, wire_connector_id.combinator_output_red)
+    device.out_green = create_cc(entity, wire_connector_id.circuit_green, wire_connector_id.combinator_output_green)
 end
 
 ---@param device  Device
@@ -325,10 +324,10 @@ local rail_types = {
 
 ---@param entity LuaEntity
 local function clear_distance_cache(entity)
-    local surfaces_to_clear = global.surfaces_to_clear
+    local surfaces_to_clear = storage.surfaces_to_clear
     if not surfaces_to_clear then
         surfaces_to_clear = {}
-        global.surfaces_to_clear = surfaces_to_clear
+        storage.surfaces_to_clear = surfaces_to_clear
     end
     surfaces_to_clear[entity.surface_index] = true
 end
@@ -349,12 +348,12 @@ local function on_entity_built(entity, tags)
     elseif entity.type == "train-stop" then
         if config.auto_rename_station then
             local name = entity.backer_name
-            local all = entity.surface.get_train_stops { name = name, force = entity.force }
+            local all = game.train_manager.get_train_stops { surface = entity.surface, station_name = name, force = entity.force }
             if #all == 2 then
                 local index = 1
                 while true do
                     local new_name = name .. "_" .. index
-                    if #entity.surface.get_train_stops { name = new_name, force = entity.force } == 0 then
+                    if #game.train_manager.get_train_stops { surface.entity.surface, station_name = new_name, force = entity.force } == 0 then
                         entity.backer_name = new_name
                         break
                     end
@@ -413,10 +412,12 @@ local function on_entity_clone(ev)
         local dst_device = new_device(dest)
 
         local cb_red = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb_red.parameters = device.out_red.get_control_behavior().parameters
+        local section = cb_red.get_section(1) or cb_red.add_section("")
+        section.filters = device.out_red.get_control_behavior().get_section(1).filters
 
         local cb_green = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb_green.parameters = device.out_green.get_control_behavior().parameters
+        local section = cb_green.get_section(1) or cb_green.add_section("")
+        section.filters = device.out_green.get_control_behavior().get_section(1).filters
 
         if dst_id and src_id then
             remove_device(device)
@@ -429,7 +430,7 @@ end
 
 ---@param evt EventData.on_built_entity | EventData.on_robot_built_entity | EventData.script_raised_built | EventData.script_raised_revive
 local function on_built(evt)
-    local e = evt.created_entity or evt.entity
+    local e = evt.entity
     if not e or not e.valid then return end
 
     on_entity_built(e, evt.tags)
@@ -447,6 +448,8 @@ end
 local entity_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'legacy-straight-rail' },
+    { filter = 'type', type = 'legacy-curved-rail' },
     { filter = 'type', type = 'rail-chain-signal' },
     { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
@@ -457,6 +460,8 @@ local entity_filter = {
 local entity_destroyed_filter = {
     { filter = 'type', type = 'curved-rail' },
     { filter = 'type', type = 'straight-rail' },
+    { filter = 'type', type = 'legacy-straight-rail' },
+    { filter = 'type', type = 'legacy-curved-rail' },
     { filter = 'type', type = 'rail-chain-signal' },
     { filter = 'type', type = 'rail-signal' },
     { filter = 'name', name = device_name },
@@ -496,10 +501,6 @@ end
 tools.on_init(on_init)
 
 ------------------------------------------------------------------------
-
-local wire_red = defines.wire_type.red
-local wire_green = defines.wire_type.green
-local circuit_input = defines.circuit_connector_id.combinator_input
 
 ---@param device Device
 local function connect_train_to_device(device)
@@ -605,6 +606,10 @@ local monitor_train_states = {
 
 local virtual_to_internals = defs.virtual_to_internals
 
+
+local circuit_red = defines.wire_connector_id.circuit_red
+local circuit_green = defines.wire_connector_id.circuit_green
+
 ---@param device Device
 local function process_device(device)
     local device_entity = device.entity
@@ -621,7 +626,6 @@ local function process_device(device)
     set_device_image(device)
 
     local role = 0
-    local circuit = device_entity.get_circuit_network(wire_red, circuit_input)
     local conf_changed
 
     local dconfig = device.dconfig
@@ -637,8 +641,6 @@ local function process_device(device)
         end
         return
     end
-
-    ---@cast circuit -nil
 
     -- role change
     if role ~= device.role then
@@ -659,9 +661,7 @@ local function process_device(device)
     if device.network.disabled then return end
 
     local function read_virtual_signals()
-        ---@cast circuit -nil
-        local red_signals = circuit.signals
-
+        local red_signals = device_entity.get_signals(circuit_red)
         if red_signals then
             for _, signal_amount in ipairs(red_signals) do
                 local signal = signal_amount.signal
@@ -680,10 +680,7 @@ local function process_device(device)
         device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
         device.is_parking = dconfig.is_parking
-        if circuit then
-            ---@cast circuit -nil
-            read_virtual_signals()
-        end
+        read_virtual_signals()
         if device.role ~= depot_role then
             yutils.add_depot(device)
             conf_changed = true
@@ -722,29 +719,25 @@ local function process_device(device)
             conf_changed = true
         end
 
-        if circuit then
-            device.builder_stop_create = nil
-            device.builder_stop_remove = nil
-            device.builder_remove_destroy = nil
-            read_virtual_signals()
-        end
+        device.builder_stop_create = nil
+        device.builder_stop_remove = nil
+        device.builder_remove_destroy = nil
+        read_virtual_signals()
 
         local create_count = allocator.get_create_count(device)
         local train_count = trainstats.get(device.network, device.builder_gpattern)
 
-        ---@type ConstantCombinatorParameters
-        local parameters = {
+        ---@type LogisticFilter
+        local filters = {
             {
-                index = 1,
-                signal = create_count_signal,
-                count = create_count or 0
+                value = create_count_signal,
+                min = create_count or 0
             }, {
-            index = 2,
-            signal = train_count_signal,
-            count = train_count or 0
+            value = train_count_signal,
+            min = train_count or 0
         }
         }
-        yutils.set_device_output(device, parameters)
+        yutils.set_device_output(device, filters)
 
         if device.role ~= builder_role then
             yutils.add_builder(device)
@@ -773,10 +766,8 @@ local function process_device(device)
 
         device.role = role --[[@as DeviceRole]]
 
-        ---@cast circuit -nil
-        local red_signals = circuit and circuit.signals
+        local red_signals = device_entity.get_signals(circuit_red)
 
-        ---@type table<string, Signal>
         local content_map = {}
         ---@type table<string, integer>
         local threshold_map
@@ -795,12 +786,16 @@ local function process_device(device)
 
         if red_signals then
             for _, signal_amount in ipairs(red_signals) do
-                local signal = signal_amount.signal
+                local signal = signal_amount.signal --[[@as SignalFilter]]
                 local signal_type = signal.type
                 local name = signal.name
                 if name and signal_amount.count ~= 0 then
-                    if signal_type == "item" then
-                        content_map["item/" .. name] = signal_amount
+                    if not signal_type or signal_type == "item" then
+                        if signal.quality then
+                            content_map["item/" .. name .. "/=/" .. signal.quality] = signal_amount
+                        else
+                            content_map["item/" .. name] = signal_amount
+                        end
                     elseif signal_type == "fluid" then
                         content_map["fluid/" .. name] = signal_amount
                     elseif signal_type == "virtual" then
@@ -813,34 +808,36 @@ local function process_device(device)
             end
         end
 
-        circuit = device_entity.get_circuit_network(wire_green, circuit_input)
-
         device.priority_map = nil
-        if circuit then
-            local green_signals = circuit.signals
-            if green_signals then
-                threshold_map = {}
-                for _, signal_amount in ipairs(green_signals) do
-                    local signal_type = signal_amount.signal.type
-                    local name = signal_amount.signal.name
-                    if name and signal_amount.count ~= 0 then
-                        local count = math.abs(signal_amount.count)
-                        if signal_type == "virtual" then
-                            local v = virtual_to_internals[name]
-                            if v then
-                                device[v] = count
-                            end
-                        elseif signal_type == "item" then
-                            threshold_map["item/" .. name] = count
-                        elseif signal_type == "fluid" then
-                            threshold_map["fluid/" .. name] = count
+
+        local green_signals = device_entity.get_signals(circuit_green)
+        if green_signals then
+            threshold_map = {}
+            ---@type SignalFilter
+            for _, signal_amount in ipairs(green_signals) do
+                local signal_type = signal_amount.signal.type
+                local name = signal_amount.signal.name
+                if name and signal_amount.count ~= 0 then
+                    local count = math.abs(signal_amount.count)
+                    if signal_type == "virtual" then
+                        local v = virtual_to_internals[name]
+                        if v then
+                            device[v] = count
                         end
+                    elseif not signal_type or signal_type == "item" then
+                        if (signal_amount.quality) then
+                            threshold_map["item/" .. name .. "/=/" .. signal_amount.quality] = count
+                        else
+                            threshold_map["item/" .. name] = count
+                        end
+                    elseif signal_type == "fluid" then
+                        threshold_map["fluid/" .. name] = count
                     end
                 end
-                if dconfig.green_wire_as_priority then
-                    device.priority_map = threshold_map
-                    threshold_map = {}
-                end
+            end
+            if dconfig.green_wire_as_priority then
+                device.priority_map = threshold_map
+                threshold_map = {}
             end
         end
 
@@ -1096,10 +1093,10 @@ local function process_device(device)
                 end
             end
             ::end_prod::
-            local parameters = yutils.build_parameters(items, 1)
+            local filters = yutils.build_filters(items, 1)
             if device.out_red.valid then
                 local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-                cb.parameters = parameters
+                cb.get_slot(1).filters = filters
             end
         end
         return
@@ -1115,10 +1112,7 @@ local function process_device(device)
         device.priority = dconfig.priority or 0
         device.inactivity_delay = dconfig.inactivity_delay
 
-        ---@cast circuit -nil
-        if circuit then
-            read_virtual_signals()
-        end
+        read_virtual_signals()
     elseif role == teleporter_role then
         if device.role ~= teleporter_role then
             device.role = teleporter_role
@@ -1133,9 +1127,7 @@ local function process_device(device)
             }) --[[@as LuaEntity]]
         end
         device.teleport_range = dconfig.teleport_range or config.teleport_range
-        if circuit then
-            read_virtual_signals()
-        end
+        read_virtual_signals()
         local trains = device.trainstop.get_train_stop_trains()
         local count = 0
         local name = device.trainstop.backer_name
@@ -1155,14 +1147,13 @@ local function process_device(device)
                 end
             end
         end
-        local parameters = {
+        local filters = {
             {
-                index = 1,
-                signal = train_count_signal,
-                count = count
+                value = train_count_signal,
+                min = count
             }
         }
-        yutils.set_device_output(device, parameters)
+        yutils.set_device_output(device, filters)
 
         if teleport.check_teleport(device) then
             yutils.set_device_image(device)

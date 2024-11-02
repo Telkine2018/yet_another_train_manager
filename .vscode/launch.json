@@ -12,7 +12,7 @@
                 "yet_another_train_manager"
             ],
             "adjustMods": {
-                "yet_another_logistic_train_network": true
+                "yet_another_train_manager": true
             }
         },
         {
@@ -27,7 +27,7 @@
                 "transfert_controller"
             ],
             "adjustMods": {
-                "yet_another_logistic_train_network": true,
+                "yet_another_train_manager": true,
                 "transfert_controller": true
             }
         },
@@ -41,7 +41,7 @@
                 "transfert_controller"
             ],
             "adjustMods": {
-                "yet_another_logistic_train_network": true
+                "yet_another_train_manager": true
             }
         }
     ]

@@ -17,10 +17,9 @@ local function compute_stat(network)
 
 
     local surface = game.surfaces[network.surface_index]
-    local trains = surface.get_trains(network.force_index)
+    local trains = game.train_manager.get_trains { surface = surface, force = network.force_index }
 
     for _, ttrain in pairs(trains) do
-        
         local train = context.trains[ttrain.id]
         if train then
             local gpattern = train.gpattern

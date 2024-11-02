@@ -30,26 +30,13 @@ local debug = tools.debug
 
 local check_refuel = yutils.check_refuel
 
-local loco_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-loco_mask"
-}
-local cargo_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-cargo_mask"
-}
-local fluid_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-fluid_mask"
-}
-local identifier_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-identifier"
-}
-local operation_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-operation"
-}
+local loco_mask_signal = tools.build_virtual_signal(commons.prefix .. "-loco_mask")
+local cargo_mask_signal = tools.build_virtual_signal(commons.prefix .. "-cargo_mask")
+local fluid_mask_signal = tools.build_virtual_signal(commons.prefix .. "-fluid_mask")
+local identifier_signal = tools.build_virtual_signal(commons.prefix .. "-identifier")
+local operation_signal = tools.build_virtual_signal(commons.prefix .. "-operation")
+
+local id_to_filter = tools.id_to_filter
 
 local train_available_states = defs.train_available_states
 
@@ -73,89 +60,78 @@ local function set_device_output(device, content, train, sign, operation)
 
     if not sign then sign = 1 end
 
-    local parameters = nil
+    ---@type LogisticFilter[]
+    local filters = nil
 
     local index = 1
     if content then
-        parameters = {}
+        filters = {}
         for name, count in pairs(content) do
-            local signalid = tools.sprite_to_signal(name)
-            table.insert(parameters, {
-                signal = signalid,
-                count = sign * count,
-                index = index
+            local signalid = id_to_filter(name)
+            table.insert(filters, {
+                value = signalid,
+                min = sign * count,
             })
             index = index + 1
         end
     else
-        parameters = {}
+        filters = {}
     end
 
-    local function apply_train_info(parameters, index)
+    ---@param parameters LogisticFilter[]
+    ---@return LogisticFilter[]
+    local function apply_train_info(parameters)
         if train then
             if train.loco_mask ~= 0 then
                 table.insert(parameters, {
-                    signal = loco_mask_signal,
-                    count = train.loco_mask,
-                    index = index
+                    value = loco_mask_signal,
+                    min = train.loco_mask,
                 })
-                index = index + 1
             end
             if train.cargo_mask ~= 0 then
                 table.insert(parameters, {
-                    signal = cargo_mask_signal,
-                    count = train.cargo_mask,
-                    index = index
+                    value = cargo_mask_signal,
+                    min = train.cargo_mask,
                 })
-                index = index + 1
             end
             if train.fluid_mask ~= 0 then
                 table.insert(parameters, {
-                    signal = fluid_mask_signal,
-                    count = train.fluid_mask,
-                    index = index
+                    value = fluid_mask_signal,
+                    min = train.fluid_mask,
                 })
-                index = index + 1
             end
             table.insert(parameters, {
-                signal = identifier_signal,
-                count = train.pattern_id,
-                index = index
+                value = identifier_signal,
+                min = train.pattern_id,
             })
-            index = index + 1
         end
-
         table.insert(parameters, {
-            signal = operation_signal,
-            count = operation,
-            index = index
+            value = operation_signal,
+            min = operation,
         })
 
-        index = index + 1
-        return parameters, index
+       return parameters
     end
 
-    parameters, index = apply_train_info(parameters, index)
+    filters = apply_train_info(filters)
 
-    local cb
+    local section
     local red_wire_mode = device.red_wire_mode
     if red_wire_mode == 1 then
-        cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb.parameters = parameters
+        section = (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+        section.filters = filters
     elseif red_wire_mode == 3 or red_wire_mode == 4 then
         if train then
-            local rparameters, rindex = {}, 1
-            rparameters, rindex = apply_train_info(rparameters, rindex)
+            local rfilters = {}
+            rfilters = apply_train_info(rfilters)
             local delivery = train.delivery
             while delivery do
                 for name, count in pairs(delivery.content) do
-                    local signalid = tools.sprite_to_signal(name)
-                    table.insert(rparameters, {
-                        signal = signalid,
-                        count = count,
-                        index = rindex
+                    local signalid = tools.id_to_filter(name)
+                    table.insert(rfilters, {
+                        value = signalid,
+                        min = count,
                     })
-                    rindex = rindex + 1
                 end
                 if red_wire_mode == 3 then
                     break
@@ -163,13 +139,13 @@ local function set_device_output(device, content, train, sign, operation)
                     delivery = delivery.combined_delivery
                 end
             end
-            cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-            cb.parameters = rparameters
+            section = (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+            section.filters = rfilters
         end
     end
 
-    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = parameters
+    section = (device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+    section.filters = filters
 end
 
 ---@param device Device
@@ -178,22 +154,19 @@ local function clear_device_output(device)
     if device.red_wire_mode ~= 2 then
         local cb
         cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb.parameters = nil
+        cb.get_section(1).filters = {}
 
         cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb.parameters = nil
+        cb.get_section(1).filters = {}
     end
 end
-
-local wire_red = defines.wire_type.red
-local circuit_input = defines.circuit_connector_id.combinator_input
 
 ---@param device Device
 local function reload_production(device)
     local entity = device.entity
     if not entity.valid then return end
 
-    local circuit = entity.get_circuit_network(wire_red, circuit_input)
+    local circuit = entity.get_circuit_network(defines.wire_connector_id.circuit_red)
 
     local signals
     if circuit then signals = circuit.signals end
@@ -205,7 +178,7 @@ local function reload_production(device)
     end
 
     for _, signal in pairs(signals) do
-        local name = signal.signal.type .. "/" .. signal.signal.name
+        local name = (signal.signal.type or "item")  .. "/" .. signal.signal.name
         local production = device.produced_items[name]
         if production then
             if signal.count > 0 then
@@ -222,7 +195,7 @@ local function reload_request(device)
     local entity = device.entity
     if not entity.valid then return end
 
-    local circuit = entity.get_circuit_network(wire_red, circuit_input)
+    local circuit = entity.get_circuit_network(defines.wire_connector_id.circuit_red)
 
     local signals
     if circuit then signals = circuit.signals end
@@ -234,7 +207,7 @@ local function reload_request(device)
     end
 
     for _, signal in pairs(signals) do
-        local name = signal.signal.type .. "/" .. signal.signal.name
+        local name = (signal.signal.type or "item") .. "/" .. signal.signal.name
         local request = device.requested_items[name]
         if request then
             if signal.count < 0 then
@@ -702,8 +675,10 @@ local function on_train_changed_state(event)
                 if delivery and ttrain.valid then
                     local existing_content = {}
                     clear_device_output(delivery.provider)
-                    for name, count in pairs(ttrain.get_contents()) do
-                        existing_content["item/" .. name] = count
+                    for _, item in pairs(ttrain.get_contents()) do
+                        local signalid = tools.signal_to_id(item)
+                        ---@cast signalid -nil
+                        existing_content[signalid] = count
                     end
                     for name, count in pairs(ttrain.get_fluid_contents()) do
                         existing_content["fluid/" .. name] = count

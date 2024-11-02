@@ -49,8 +49,8 @@ local function cdebug(cond, msg) if cond then debug(msg) end end
 tools.cdebug = cdebug
 
 ---@param value boolean
-function tools.set_tracing(value) 
-    tracing = value 
+function tools.set_tracing(value)
+    tracing = value
     tools.tracing = value
 end
 
@@ -68,10 +68,10 @@ local strip = tools.strip
 ---@return {[string]:any}
 function tools.get_vars(player)
     ---@type {[integer]: {[string]:any}}
-    local players = global.players
+    local players = storage.players
     if players == nil then
         players = {}
-        global.players = players
+        storage.players = players
     end
     local vars = players[player.index]
     if vars == nil then
@@ -85,10 +85,10 @@ end
 ---@param force LuaForce
 ---@return table<string, any>
 function tools.get_force_vars(force)
-    local forces = global.forces
+    local forces = storage.forces
     if forces == nil then
         forces = {}
-        global.forces = forces
+        storage.forces = forces
     end
     local vars = forces[force.index]
     if vars == nil then
@@ -103,8 +103,8 @@ end
 ---@param field string ?
 function tools.close_ui(unit_number, close_proc, field)
     if not field then field = "selected" end
-    if not global.players then return end
-    for index, vars in pairs(global.players) do
+    if not storage.players then return end
+    for index, vars in pairs(storage.players) do
         local selected = vars[field]
         if selected and selected.valid and selected.unit_number == unit_number then
             vars.selected = nil
@@ -116,8 +116,8 @@ end
 
 ---@return integer
 function tools.get_id()
-    local id = global.id or 1
-    global.id = id + 1
+    local id = storage.id or 1
+    storage.id = id + 1
     return id
 end
 
@@ -126,9 +126,9 @@ function tools.upgrade_id(newid)
     if not newid then
         return
     end
-    local id = global.id or 1
+    local id = storage.id or 1
     if id <= newid then
-        global.id = newid + 1
+        storage.id = newid + 1
     end
 end
 
@@ -451,7 +451,7 @@ local function call_handler(e)
 end
 
 ---@param name string
----@param event integer
+---@param event integer|defines.events
 ---@param callback fun(e:EventData)
 function tools.on_named_event(name, event, callback)
     if not handler_registered[event] then
@@ -670,13 +670,15 @@ function tools.fire_user_event(name, data)
     if handler then handler(data) end
 end
 
----@param signal SignalID
+---@param signal (SignalID | SignalFilter) ?
 ---@return string?
 function tools.signal_to_sprite(signal)
     if not signal then return nil end
     local type = signal.type
     if type == "virtual" then
         return "virtual-signal/" .. signal.name
+    elseif type == nil then
+        return "item/" .. signal.name
     else
         return type .. "/" .. signal.name
     end
@@ -690,6 +692,7 @@ function tools.sprite_to_signal(sprite)
     if not sprite then return nil end
     local split = gmatch(sprite, "([^/]+)[/]([^/]+)")
     local type, name = split()
+    if name == nil then return { type = "item", name = type } end
     if type == "virtual-signal" then type = "virtual" end
     return { type = type, name = name }
 end
@@ -716,11 +719,11 @@ end
 ---@return any
 local function check_signal(type, name)
     if type == "virtual" then
-        return game.virtual_signal_prototypes[name]
+        return prototypes.virtual_signal[name]
     elseif type == "item" then
-        return game.item_prototypes[name]
+        return prototypes.item[name]
     elseif type == "fluid" then
-        return game.fluid_prototypes[name]
+        return prototypes.fluid[name]
     end
     return true
 end
@@ -730,7 +733,7 @@ end
 ---@return string?
 function tools.check_sprite(sprite, default)
     if not sprite then return nil end
-    local signal = tools.sprite_to_signal(sprite)
+    local signal = tools.id_to_signal(sprite)
     ---@cast signal -nil
     if check_signal(signal.type, signal.name) then
         return sprite
@@ -771,21 +774,21 @@ function tools.destroy_entities(master, entity_names)
     for _, e in pairs(entities) do if e.valid then e.destroy() end end
 end
 
----@param index integer | defines.train_state
+---@param index integer | defines.train_state | defines.events
 ---@param base table<string, integer>
 ---@return string
 function tools.get_constant_name(index, base)
     if base then
         for name, i in pairs(base) do if i == index then return name end end
     end
-    return  tostring(index)
+    return tostring(index)
 end
 
 ------------------------------------------------
 
 local define_directions = defines.direction
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_local_disp(direction, pos)
@@ -802,7 +805,7 @@ function tools.get_local_disp(direction, pos)
     end
 end
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_front(direction, pos)
@@ -819,7 +822,7 @@ function tools.get_front(direction, pos)
     end
 end
 
----@param direction integer
+---@param direction integer | defines.direction
 ---@param pos MapPosition
 ---@return MapPosition
 function tools.get_back(direction, pos)
@@ -843,8 +846,8 @@ tools.opposite_directions = {
     [define_directions.west] = define_directions.east
 }
 
----@param direction integer
----@return integer
+---@param direction integer | defines.direction
+---@return defines.direction
 function tools.get_opposite_direction(direction)
     if direction == define_directions.north then
         return define_directions.south
@@ -898,9 +901,9 @@ function tools.get_item_stack_size(name)
     local stack_size = stack_size_map[name]
     if stack_size then return stack_size end
 
-    local signal = tools.sprite_to_signal(name) --[[@as SignalID]]
+    local signal = tools.id_to_signal(name) --[[@as SignalID]]
     if signal.type == "item" then
-        local proto = game.item_prototypes[signal.name]
+        local proto = prototypes.item[signal.name]
         if proto then
             stack_size = proto.stack_size
         else
@@ -923,7 +926,7 @@ function tools.get_item_prototype(name)
     local proto = item_prototypes_map[name]
     if proto then return proto end
 
-    proto = game.item_prototypes[name]
+    proto = prototypes.item[name]
     item_prototypes_map[name] = proto
     return proto
 end
@@ -1058,7 +1061,7 @@ function tools.create_standard_panel(player, params)
             tooltip = params.close_button_tooltip,
             style = "frame_action_button",
             mouse_button_filter = params.close_button_filter or { "left" },
-            sprite = "utility/close_white",
+            sprite = "utility/close",
             hovered_sprite = "utility/close_black"
         }
     end
@@ -1099,5 +1102,96 @@ local function fround(value)
 end
 
 tools.fround = fround
+
+---@param id string | LuaRenderObject
+---@return LuaRenderObject
+function tools.render_translate(id)
+    if id and type(id) == "number" then
+        return rendering.get_object_by_id(id)
+    end
+    return id --[[@as LuaRenderObject]]
+end
+
+---@param ids (string | LuaRenderObject)[]?
+---@return LuaRenderObject[]?
+function tools.render_translate_table(ids)
+    if not ids then return nil end
+    for i = 1, #ids do
+        ids[i] = tools.render_translate(ids[i])
+    end
+    return ids
+end
+
+---@param item ItemFilter?
+---@return string?
+function tools.item_to_string(item)
+    if not item then return nil end
+    return item.name .. "/" .. (item.comparator or "=") .. "/" .. (item.quality or "normal")
+end
+
+local gmatch = string.gmatch
+
+---@param qname string?
+---@return (ItemFilter|string)?
+function tools.string_to_item(qname)
+    if not qname then return nil end
+    if type(qname) ~= "string" then return qname end
+    local split = gmatch(qname, "([^/]+)")
+    local name = split()
+    local comparator = split() or "="
+    local quality = split() or "normal"
+    return { name = name, comparator = comparator, quality = quality }
+end
+
+-------------------------------------
+
+---@param signal SignalFilter | ItemCountWithQuality
+---@return string?
+function tools.signal_to_id(signal)
+    if not signal then return nil end
+    if signal.quality and signal.quality ~= "normal" then
+        return (signal.type or "item") .. "/" .. signal.name .. "/" .. (signal.comparator or "=") .. "/" .. signal.quality
+    else
+        return (signal.type or "item") .. "/" .. signal.name
+    end
+end
+
+---@param signalid string?
+---@return SignalFilter?
+function tools.id_to_signal(signalid)
+    if not signalid then return nil end
+    if type(signalid) ~= "string" then return signalid end
+    local split = gmatch(signalid, "([^/]+)[/]([^/]+)")
+    local type, name = split()
+    local comparator, quality = split() 
+    if name ~= nil then
+        return { type = type, name = name, comparator = comparator, quality = quality }
+    else
+        return { type = "item", name = signalid }
+    end
+end
+
+---@param signalid string?
+---@return (SignalFilter | string)?
+function tools.id_to_filter(signalid)
+    if not signalid then return nil end
+    if type(signalid) ~= "string" then return signalid end
+    local split = gmatch(signalid, "([^/]+)[/]([^/]+)")
+    local type, name = split()
+    local comparator, quality = split() 
+    if not type or type == "item" then
+        if not quality or quality == "normal" then
+            return name
+        end
+        return { type = "item", name = name, comparator = comparator or "=", quality = quality }
+    end
+    return { type = type, name = name, comparator="=", quality="normal" }
+end
+
+---@param name string
+---@return SignalFilter
+function tools.build_virtual_signal(name)
+    return { type = "virtual", name = name, comparator="=", quality="normal" }
+end
 
 return tools

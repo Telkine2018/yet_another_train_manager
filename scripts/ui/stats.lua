@@ -203,25 +203,28 @@ function uistats.update(player)
 
         local row = content
         local field_index = 1
-        local signalid = tools.sprite_to_signal(stat.name)
+        local signal = tools.id_to_signal(stat.name)
 
         local proto
-        ---@cast signalid -nil
+        ---@cast signal -nil
 
-        local sprite_name = stat.name
-        if signalid.type == "item" then
-            proto = game.item_prototypes[signalid.name]
-        elseif signalid.type == "fluid" then
-            proto = game.fluid_prototypes[signalid.name]
-        elseif signalid.type == "virtual" then
-            proto = game.virtual_signal_prototypes[signalid.name]
-            sprite_name = "virtual-signal/" .. signalid.name
+        local sprite_name = tools.signal_to_sprite(signal)
+        if signal.type == "item" then
+            proto = prototypes.item[signal.name]
+        elseif signal.type == "fluid" then
+            proto = prototypes.fluid[signal.name]
+        elseif signal.type == "virtual" then
+            proto = prototypes.virtual_signal[signal.name]
         end
 
         -------- name
+        local qname = " "
+        if signal.quality then
+            qname = "[quality=" .. signal.quality .. "] "
+        end
         local fname = row.add {
             type = "label",
-            caption = {"", "[img=" .. sprite_name .. "] ", proto.localised_name}
+            caption = {"", "[img=" .. sprite_name .. "]" .. qname, proto.localised_name}
         }
         fname.style = "yatm_clickable_semibold_label"
         fname.style.horizontal_align = "center"

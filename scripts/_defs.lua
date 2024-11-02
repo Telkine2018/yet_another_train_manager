@@ -3,6 +3,8 @@ local commons = require("scripts.commons")
 
 local prefix = commons.prefix
 
+---@alias QName string
+
 ---@class IndexableEntity
 ---@field position MapPosition
 
@@ -16,9 +18,9 @@ local prefix = commons.prefix
 ---@field force_id integer
 ---@field trainstop LuaEntity                               @ Associated train stop
 ---@field trainstop_id integer                              @ Associated train stop id
----@field requested_items table<string, Request>            @ Requested items (round to threshholds)
----@field produced_items table<string, Request>             @ Provided items (round to threshholds)
----@field priority_map table<string, integer>               @ Item => priority
+---@field requested_items table<QName, Request>            @ Requested items (round to threshholds)
+---@field produced_items table<QName, Request>             @ Provided items (round to threshholds)
+---@field priority_map table<QName, integer>               @ Item => priority
 ---@field train Train                                       @ current train in/tp depot
 ---@field trains table<int, Train>                          @ trains that target depot
 ---@field deliveries {[int]:Delivery}                       @ indexed by train id
@@ -179,7 +181,7 @@ local prefix = commons.prefix
 ---@field refresh_tick integer
 ---@field is_empty boolean
 ---@field network_mask integer
----@field splitted_schedule TrainScheduleRecord[][]?
+---@field splitted_schedule ScheduleRecord[][]?
 ---@field teleporting boolean
 ---@field timeout_tick integer
 ---@field timeout_delay integer

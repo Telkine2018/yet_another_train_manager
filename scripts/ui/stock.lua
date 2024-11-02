@@ -110,36 +110,36 @@ function uistock.update(player)
     local deliveries = {}
     local internals = {}
     if signal_filter then
-        local name = signal_filter
+        local filter_id = signal_filter
         for _, device in pairs(devices) do
             if device.dconfig and not device.inactive and filter(device) then
-                local r = device.produced_items[name]
+                local r = device.produced_items[filter_id]
                 if r then
                     local count = r.provided - r.requested
                     if count > 0 then
-                        provided[name] = (provided[name] or 0) + count
+                        provided[filter_id] = (provided[filter_id] or 0) + count
                     end
                 end
-                r = device.requested_items[name]
+                r = device.requested_items[filter_id]
                 if r then
                     local count = r.requested - r.provided
                     if count >= r.threshold then
-                        requested[name] = (requested[name] or 0) + count
+                        requested[filter_id] = (requested[filter_id] or 0) + count
                     end
                 end
                 for _, d in pairs(device.deliveries) do
                     if not deliveries[d.id] then
                         deliveries[d.id] = true
-                        local count = d.content[name]
+                        local count = d.content[filter_id]
                         if count and count > 0 then
-                            transit[name] = (transit[name] or 0) + count
+                            transit[filter_id] = (transit[filter_id] or 0) + count
                         end
                     end
                 end
                 if device.internal_requests then
-                    local count = device.internal_requests[name]
+                    local count = device.internal_requests[filter_id]
                     if count then
-                        internals[name] = (internals[name] or 0) + count
+                        internals[filter_id] = (internals[filter_id] or 0) + count
                     end
                 end
             end

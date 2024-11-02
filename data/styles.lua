@@ -114,29 +114,6 @@ styles.yatm__selected_sort_checkbox = {
 }
 
 
-styles.yatm_table_row_frame_light = {
-    type = "frame_style",
-    parent = "statistics_table_item_frame",
-    top_padding = 0,
-    bottom_padding = 0,
-    left_padding = 0,
-    right_padding = 0,
-    minimal_height = 52,
-    horizontal_flow_style = {
-        type = "horizontal_flow_style",
-        vertical_align = "center",
-        horizontal_spacing = 5,
-        horizontally_stretchable = "on"
-    },
-    graphical_set = { base = { center = { position = { 76, 8 }, size = { 1, 1 } } } }
-}
-
-styles.yatm_table_row_frame_dark = {
-    type = "frame_style",
-    parent = "yatm_table_row_frame_light",
-    graphical_set = {}
-}
-
 local default_orange_color = {r = 0.98, g = 0.66, b = 0.22}
 
 
@@ -216,6 +193,13 @@ for _, suffix in ipairs({ "default", "red", "green", "blue" }) do
         top_margin = 0
     }
 end
+
+styles["yatm_tiny_slot_button_default"] = {
+    type = "button_style",
+    parent = "flib_slot_button_default",
+    size = 32,
+    top_margin = 0
+}
 
 data:extend { {
     type = "font",

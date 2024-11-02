@@ -13,7 +13,7 @@ local function flush()
     if #lines > 0 then
         table.insert(lines, "")
         local s = table.concat(lines, "\n")
-        game.write_file(filename, s, true)
+        helpers.write_file(filename, s, true)
         lines = {}
     end
 end
@@ -82,8 +82,8 @@ end
 function dump.process()
     recurs_map = {}
     recurs_index = 0
-    game.write_file(filename, "", false)
-    dump_level(global, "", 0, "")
+    helpers.write_file(filename, "", false)
+    dump_level(storage, "", 0, "")
     flush()
     recurs_map = nil
 end

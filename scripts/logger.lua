@@ -97,10 +97,11 @@ function logger.delivery_to_text(delivery)
         first = false
 
         local cc = {prefix .. "-logger.delivery-product"}
-        local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
+        local signal = tools.id_to_signal(name) 
+        ---@cast signal -nil
         table.insert(cc, tostring(amount))
         table.insert(cc,
-                     "[img=" .. signalId.type .. "/" .. signalId.name .. "] ")
+                     "[img=" .. signal.type .. "/" .. signal.name .. "] ")
         table.insert(product_table, cc)
         max = max + 1
         if max > 6 then break end
@@ -129,9 +130,10 @@ local delivery_to_text = logger.delivery_to_text
 local function request_to_text(e)
 
     local result = {prefix .. "-logger.request"}
-    local signalId = tools.sprite_to_signal(e.request_name) --[[@as SignalID]]
+    local signal = tools.id_to_signal(e.request_name)
+    ---@cast signal -nil
     table.insert(result, tostring(e.request_amount))
-    table.insert(result, "[" .. signalId.type .. "=" .. signalId.name .. "]")
+    table.insert(result, "[" .. signal.type .. "=" .. signal.name .. "]")
     local trainstop = e.device.trainstop
     if (trainstop.valid) then
         table.insert(result, trainstop_to_text(trainstop))

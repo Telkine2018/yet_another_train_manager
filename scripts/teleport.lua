@@ -36,7 +36,7 @@ function teleport.try_teleport(device) end
 ---@param network SurfaceNetwork
 ---@param start_pos MapPosition
 ---@param target_pos MapPosition
----@param records TrainScheduleRecord[]
+---@param records ScheduleRecord[]
 ---@return boolean ?
 function teleport.add_teleporter(network, start_pos, target_pos, records)
     if not network.teleporters then return end
@@ -116,7 +116,7 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
             {
                 type = "time",
                 compare_type = "and",
-                tick = config.teleport_timeout
+                ticks = config.teleport_timeout
             }
         }
     })
@@ -146,12 +146,11 @@ end
 ---@return TeleportInfo?
 ---@return boolean?
 local function get_teleport_info(device)
-
     device.failcode = nil
     local src_trainstop = device.trainstop
-    if not (src_trainstop and src_trainstop.valid) then 
+    if not (src_trainstop and src_trainstop.valid) then
         device.failcode = 200
-        return nil, false 
+        return nil, false
     end
 
     local ttrain = src_trainstop.get_stopped_train();
@@ -169,23 +168,27 @@ local function get_teleport_info(device)
     end
 
     local schedule = ttrain.schedule
+    ---@cast schedule -nil
     local r = schedule.records[schedule.current + 1]
     local connected_rail = r.rail
-    if not connected_rail then 
+    if not connected_rail then
         device.failcode = 202
-        return nil, true 
+        return nil, true
     end
 
-    local dst_trainstop = connected_rail.get_rail_segment_entity(r.rail_direction, false)
-    if not dst_trainstop then 
+    local dst_trainstop = connected_rail.get_rail_segment_stop(r.rail_direction)
+    if not dst_trainstop then
         device.failcode = 203
-        return nil, true 
+        return nil, true
     end
 
 
     local rail_direction = dst_trainstop.connected_rail_direction
     local rev_rail_direction = rail_direction == defines.rail_direction.front and defines.rail_direction.back or defines.rail_direction.front
     local rail = dst_trainstop.connected_rail
+    if rail == nil then
+        return nil, true
+    end
     local end_rail = rail.get_rail_segment_end(rev_rail_direction)
     local rail_len = math.ceil(
         math.max(
@@ -225,9 +228,9 @@ local function get_teleport_info(device)
     end
 
     local dst_device = context.trainstop_map[dst_trainstop.unit_number]
-    if not dst_device then 
+    if not dst_device then
         device.failcode = 205
-        return nil, true 
+        return nil, true
     end
 
     device.teleport_last_dst = dst_device
@@ -264,9 +267,9 @@ local function get_teleport_info(device)
         right_bottom = { x2, y2 }
     }
 
-    if count > 0 then 
+    if count > 0 then
         device.failcode = 204
-        return nil, true 
+        return nil, true
     end
 
     return {
@@ -385,6 +388,7 @@ local function do_teleport(info)
         if grid then
             local equipment = grid.equipment
             local cgrid = created.grid
+            ---@cast cgrid -nil
             for _, e in pairs(equipment) do
                 local ce = cgrid.put { name = e.name, position = e.position }
                 ce.energy = e.energy
@@ -394,13 +398,15 @@ local function do_teleport(info)
                 local burner = e.burner
                 if burner and ce then
                     local cburner = ce.burner
-                    cburner.currently_burning = burner.currently_burning
-                    cburner.heat = burner.heat
-                    cburner.remaining_burning_fuel = burner.remaining_burning_fuel
+                    if cburner then
+                        cburner.currently_burning = burner.currently_burning
+                        cburner.heat = burner.heat
+                        cburner.remaining_burning_fuel = burner.remaining_burning_fuel
 
-                    local contents = burner.inventory.get_contents()
-                    for name, amount in pairs(contents) do
-                        cburner.inventory.insert { name = name, amount = amount }
+                        local contents = burner.inventory.get_contents()
+                        for _, item in pairs(contents) do
+                            cburner.inventory.insert { name = item.name, count = item.count }
+                        end
                     end
                 end
             end
@@ -531,7 +537,7 @@ end
 ---@field currently_burning LuaItemPrototype?
 ---@field remaining_burning_fuel number?
 ---@field heat number?
----@field fuel table<string, integer>
+---@field fuel ItemCountWithQuality[]
 
 ---@param device Device
 ---@return boolean
@@ -646,7 +652,7 @@ function teleport.extract_teleportation_info(info)
         ---@type CarriageTeleportInfo
         local created = {
             name = carriage.name,
-            direction = direction,
+            direction = direction --[[@as integer]],
             position = { x, y },
             type = carriage.type,
             passenger = carriage.get_driver()
@@ -720,7 +726,7 @@ function teleport.apply_teleportation(ti)
             name = carriage.name,
             position = carriage.position,
             force = ti.force,
-            direction = carriage.direction
+            direction = carriage.direction --[[@as defines.direction]]
         }
 
         if not created then
@@ -764,20 +770,22 @@ function teleport.apply_teleportation(ti)
 
         if carriage.grid then
             local grid = created.grid
-            for _, e in pairs(carriage.grid) do
-                local ce = grid.put { name = e.name, position = e.position }
-                if ce then
-                    ce.energy = e.energy
-                    if e.shield then ce.shield = e.shield end
-                    if e.currently_burning then
-                        local burner = ce.burner
-                        if burner then
-                            burner.currently_burning = e.currently_burning
-                            burner.remaining_burning_fuel = e.remaining_burning_fuel
-                            burner.heat = e.heat
-                            if e.fuel then
-                                for name, count in pairs(e.fuel) do
-                                    burner.inventory.insert { name = name, count = count }
+            if grid then
+                for _, e in pairs(carriage.grid) do
+                    local ce = grid.put { name = e.name, position = e.position }
+                    if ce then
+                        ce.energy = e.energy
+                        if e.shield then ce.shield = e.shield end
+                        if e.currently_burning then
+                            local burner = ce.burner
+                            if burner then
+                                burner.currently_burning = e.currently_burning
+                                burner.remaining_burning_fuel = e.remaining_burning_fuel
+                                burner.heat = e.heat
+                                if e.fuel then
+                                    for _, item in pairs(e.fuel) do
+                                        burner.inventory.insert { name = item.name, count = item.count, quality = item.quality }
+                                    end
                                 end
                             end
                         end

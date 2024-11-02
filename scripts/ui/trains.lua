@@ -215,8 +215,10 @@ function uitrains.update(player)
         local _, content_table = uiutils.create_product_table(row, np("shipment"), 8, 1)
         local products = {}
         local items = train.train.get_contents()
-        for name, count in pairs(items) do
-            products["item/" .. name] = count
+        for _, item in pairs(items) do
+            local signalid = tools.signal_to_id(item --[[@as SignalFilter]])
+            ---@cast signalid -nil
+            products[signalid] = item.count
         end
         local fluids = train.train.get_fluid_contents()
         for name, count in pairs(fluids) do

@@ -16,7 +16,7 @@ local function create_base(base_name)
 	entity.minable = { mining_time = 0.5, result = base_name }
 	entity.circuit_wire_max_distance = 10
 	entity.max_health = 500
-	entity.active_energy_usage = '1KW'
+	entity.active_energy_usage = '1kW'
 	entity.energy_source = { type = "void" }
 	entity.render_no_network_icon = false
 	entity.render_no_power_icon = false
@@ -36,11 +36,9 @@ local function create_base(base_name)
 	entity.sprites = table.deepcopy(decider.sprites)
 	for k, spec in pairs(entity.sprites) do
 		for n, layer in pairs(spec.layers) do
-			layer, layer.hr_version = layer.hr_version, nil -- only use hr version, for easier editing
-			spec.layers[n] = layer
-			if not layer.filename:match('^__base__/graphics/entity/combinator/hr%-decider%-combinator')
+			if not layer.filename:match('^__base__/graphics/entity/combinator/decider%-combinator')
 			then
-				error('hr-decider-combinator sprite sheet incompatibility detected')
+				error('decider-combinator sprite sheet incompatibility detected')
 			end
 			if not layer.filename:match('%-shadow%.png$')
 			then
@@ -54,14 +52,12 @@ local function create_base(base_name)
 	for prop, sprites in pairs(entity) do
 		if not prop:match('_symbol_sprites$') then goto skip end
 		for dir, spec in pairs(sprites) do
-			spec, spec.hr_version = spec.hr_version, nil -- only use hr version, for easier editing
-			sprites[dir] = spec
-			if spec.filename ~= '__base__/graphics/entity/combinator/hr-combinator-displays.png'
+			if spec.filename ~= '__base__/graphics/entity/combinator/combinator-displays.png'
 			then
 				error('hr-decider-combinator display symbols sprite sheet incompatibility detected')
 			end
 			spec.filename = png(base_name .. '-displays')
-			spec.shift = table.deepcopy(decider.greater_symbol_sprites[dir].hr_version.shift)
+			spec.shift = table.deepcopy(decider.greater_symbol_sprites[dir].shift)
 		end
 		::skip::
 	end
@@ -84,7 +80,7 @@ local function create_base(base_name)
 			{ type = 'constant-combinator',
 				name = base_name .. '-cc',
 				flags = { 'placeable-off-grid' },
-				collision_mask = {},
+				collision_mask = { layers = {} },
 				item_slot_count = item_slot_count,
 				circuit_wire_max_distance = 3,
 				sprites = invisible_sprite,
@@ -99,61 +95,59 @@ create_base(commons.device_name)
 
 local recipe, tech
 
-	recipe =
-	{
-		type = 'recipe',
-		name = commons.device_name,
-		enabled = false,
-		ingredients = {
-			{ 'electronic-circuit', 4 }
-		},
-		result = commons.device_name
-	}
+recipe =
+{
+	type = 'recipe',
+	name = commons.device_name,
+	enabled = false,
+	ingredients = {
+		{ type = "item", name = 'electronic-circuit', amount = 4 }
+	},
+	results = { { type = "item", name = commons.device_name, amount = 1 } }
+}
 
-	tech = {
-		type = 'technology',
-		name = commons.device_name,
-		icon_size = 144,
-		icon = png('tech'),
-		effects = {
-			{ type = 'unlock-recipe', recipe = commons.device_name }
-		},
-		unit = {
-			count = 200,
-			ingredients = {
-				{ 'automation-science-pack', 1 },
-				{ 'logistic-science-pack',   1 } },
-			time = 15
-		},
-		order = 'a-d-d-z'
-	}
+tech = {
+	type = 'technology',
+	name = commons.device_name,
+	icon_size = 144,
+	icon = png('tech'),
+	effects = {
+		{ type = 'unlock-recipe', recipe = commons.device_name }
+	},
+	unit = {
+		count = 200,
+		ingredients = {
+			{ 'automation-science-pack', 1 },
+			{ 'logistic-science-pack',   1 } },
+		time = 15
+	},
+	order = 'a-d-d-z'
+}
 
 if mods["nullius"] then
-
 	recipe.ingredients = {
-		{"arithmetic-combinator", 2},
-		{"copper-cable", 10}
+		{ type = "item", name = "arithmetic-combinator", amount = 2 },
+		{ type = "item", name = "copper-cable",          amount = 10 }
 	}
 	recipe.category = "tiny-crafting"
 	recipe.always_show_made_in = true
 	recipe.name = "nullius-" .. recipe.name
 
-	
+
 	tech.name = "nullius-" .. tech.name
 	tech.order = "nullius-z-z-z"
 	tech.unit = {
 		count = 100,
 		ingredients = {
-			{"nullius-geology-pack", 1}, {"nullius-climatology-pack", 1}, {"nullius-mechanical-pack", 1}, {"nullius-electrical-pack", 1}
+			{ "nullius-geology-pack", 1 }, { "nullius-climatology-pack", 1 }, { "nullius-mechanical-pack", 1 }, { "nullius-electrical-pack", 1 }
 		},
 		time = 25
 	}
-	tech.prerequisites = {"nullius-checkpoint-optimization", "nullius-traffic-control"}
+	tech.prerequisites = { "nullius-checkpoint-optimization", "nullius-traffic-control" }
 	tech.ignore_tech_tech_cost_multiplier = true
 	tech.effects = {
 		{ type = 'unlock-recipe', recipe = recipe.name }
 	}
-
 end
 
 data:extend {
@@ -193,7 +187,7 @@ local ebuffer = {
 		output_flow_limit = "0W",
 		drain = (20 * 1000 * 1000) .. "W"
 	},
-	collision_mask = {},
+	collision_mask = { layers = {} },
 	collision_box = { { -0.4, -0.4 }, { 0.4, 0.4 } },
 	selection_box = { { -0.4, -0.4 }, { 0.4, 0.4 } },
 	selectable_in_game = false

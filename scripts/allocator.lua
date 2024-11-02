@@ -351,6 +351,8 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                 min_train = train
                 min_builder = nil
                 return true
+            else
+                yutils.remove_train(train, false)
             end
         else
             candidate.failcode = 28
@@ -565,16 +567,18 @@ function allocator.builder_is_available(builder)
     local inv = container.get_inventory(defines.inventory.chest)
     if inv then
         local content = inv.get_contents()
+        local content_map = {}
+        for _,item in pairs(content) do content_map[item.name] = item.count end
 
         for name, count in pairs(builder.builder_parts) do
-            local existing = content[name] or 0
+            local existing = content_map[name] or 0
             if existing < count then
                 builder.failcode = 13
                 return false
             end
         end
 
-        local fuel_count = content[builder.builder_fuel_item] or 0
+        local fuel_count = content_map[builder.builder_fuel_item] or 0
         if fuel_count < builder.builder_fuel_count then
             builder.failcode = 16
             return false
@@ -667,7 +671,7 @@ function allocator.builder_create_train(builder)
 
             if entity.type == "locomotive" and builder.builder_fuel_item then
                 local inv = entity.get_inventory(defines.inventory.fuel) --[[@as LuaInventory]]
-                local stack_size = game.item_prototypes[builder.builder_fuel_item].stack_size
+                local stack_size = prototypes.item[builder.builder_fuel_item].stack_size
                 local count = stack_size * #inv
                 inv.insert({ name = builder.builder_fuel_item, count = count })
                 content[builder.builder_fuel_item] = (content[builder.builder_fuel_item] or 0) + count
@@ -717,13 +721,13 @@ function allocator.builder_compute_conf(builder)
     local content = trainconf.get_train_content(elements)
     builder.builder_parts = content
 
-    local stack_size = builder.builder_fuel_item and game.item_prototypes[builder.builder_fuel_item].stack_size or 0
+    local stack_size = builder.builder_fuel_item and prototypes.item[builder.builder_fuel_item].stack_size or 0
     local fuel_count = 0
     local stock_count = 0
     builder.builder_cargo_count = 0
     builder.builder_fluid_count = 0
     for name, count in pairs(content) do
-        local proto = game.entity_prototypes[name]
+        local proto = prototypes.item[name]
         if builder.builder_fuel_item and proto.type == "locomotive" then
             fuel_count = fuel_count + proto.get_inventory_size(defines.inventory.fuel) * stack_size * count
         end
@@ -770,16 +774,20 @@ function allocator.builder_delete_train(train, builder)
     if builder.trains then builder.trains[train.id] = nil end
 
     local ttrain = train.train
-    local content = {}
-    for name, count in pairs(ttrain.get_contents()) do content[name] = count end
+    local train_content = {}
+    for _, item in pairs(ttrain.get_contents()) do 
+        local signalid = tools.signal_to_id(item)
+        ---@cast signalid -nil
+        train_content[signalid] = count 
+    end
 
     -- collect content
     for _, carriage in pairs(ttrain.carriages) do
         if carriage.type == "locomotive" then
             local inv = carriage.get_inventory(defines.inventory.fuel)
             if inv then
-                for name, count in pairs(inv.get_contents()) do
-                    content[name] = (content[name] or 0) + count
+                for _, item in pairs(inv.get_contents()) do
+                    train_content[item.name] = (train_content[item.name] or 0) + item.count
                 end
             end
             local loco = carriage
@@ -787,16 +795,15 @@ function allocator.builder_delete_train(train, builder)
             if burner then
                 local current = burner.currently_burning
                 if current then
-                    local percent = 100 * burner.remaining_burning_fuel /
-                        current.fuel_value
+                    local percent = 100 * burner.remaining_burning_fuel / current.name.fuel_value
                     if percent >= 50 then
-                        content[current.name] = (content[current.name] or 0) + 1
+                        train_content[current.name.name] = (train_content[current.name.name] or 0) + 1
                     end
                 end
             end
         end
         local name = carriage.name
-        content[name] = (content[name] or 0) + 1
+        train_content[name] = (train_content[name] or 0) + 1
         carriage.destroy { raise_destroy = true }
     end
 
@@ -806,12 +813,15 @@ function allocator.builder_delete_train(train, builder)
         if container then
             local inv = container.get_inventory(defines.inventory.chest)
             if inv then
-                for name, count in pairs(content) do
-                    local inserted = inv.insert { name = name, count = count }
+                for signalid, count in pairs(train_content) do
+                    local signal = tools.id_to_signal(signalid)
+                    ---@cast signal -nil
+                    local inserted = inv.insert { name = signal.name, count = count, quality=signal.quality }
                     if inserted ~= count then
-                        builder.entity.surface.spill_item_stack(
-                            builder.position,
-                            { name = name, count = count - inserted })
+                        builder.entity.surface.spill_item_stack{
+                            position = builder.position,
+                            stack = { name = signalid, count = count - inserted } 
+                        }
                     end
                 end
             end
@@ -944,7 +954,7 @@ function allocator.route_to_station(train, device)
 
     if device.role == builder_role then
         local rails = device.entity.surface.find_entities_filtered {
-            name = "straight-rail",
+            name = {"straight-rail", "legacy-straight-rail"},
             position = device.builder_entry
         }
         if #rails > 0 then

@@ -159,7 +159,7 @@ local function open(player)
         tooltip = { np("close-tooltip") },
         style = "frame_action_button",
         mouse_button_filter = { "left" },
-        sprite = "utility/close_white",
+        sprite = "utility/close",
         hovered_sprite = "utility/close_black"
     }
 
@@ -201,7 +201,7 @@ local function open(player)
     --------------- Product
     label = search_panel1.add { type = "label", caption = { np("product") } }
     label.style.left_margin = 20
-    local filter_signal = tools.sprite_to_signal(uiconfig.signal_filter)
+    local filter_signal = tools.id_to_signal(uiconfig.signal_filter)
     local signal_filter = search_panel1.add {
         type = "choose-elem-button",
         name = signal_filter_name,
@@ -488,10 +488,10 @@ local refresh_delay = { 0, 2 * 60, 5 * 60, 10 * 60, 30 * 60 }
 tools.on_nth_tick(60, function(e)
     if config.disabled then return end
     if not config.ui_autoupdate then return end
-    if not global.players then return end
+    if not storage.players then return end
 
     local tick = game.tick
-    for player_index, vars in pairs(global.players) do
+    for player_index, vars in pairs(storage.players) do
         local player = game.players[player_index]
         local vars = tools.get_vars(player)
         local refresh_rate = vars.ui_refresh_rate
@@ -534,12 +534,12 @@ tools.on_named_event(uiutils.np("product_button"), defines.events.on_gui_click,
         local uiconfig = get_uiconfig(player)
 
         if e.button == defines.mouse_button_type.left then
-            local signal = e.element.sprite --[[@as string]]
-            local signalid = tools.sprite_to_signal(signal) --[[@as SignalID]]
-            if signal ~= nil and (signalid.type == "item" or signalid.type == "fluid") then
-                uiconfig.signal_filter = signal
+            local signal = e.element.elem_value --[[@as SignalFilter]]
+            if signal ~= nil and (not signal.type or signal.type == "item" or signal.type == "fluid") then
+                local signalid = tools.signal_to_id(signal)
+                uiconfig.signal_filter = signalid
                 local fsignal = uiutils.get_child(player, signal_filter_name)
-                fsignal.elem_value = signalid
+                fsignal.elem_value = signal
             end
         elseif e.button == defines.mouse_button_type.right then
             local fsignal = uiutils.get_child(player, signal_filter_name)
@@ -560,7 +560,7 @@ tools.on_named_event(uiutils.np("product_button_requested"), defines.events.on_g
 
         if e.button == defines.mouse_button_type.left then
             local signal = e.element.sprite --[[@as string]]
-            local signalid = tools.sprite_to_signal(signal) --[[@as SignalID]]
+            local signalid = tools.id_to_signal(signal) --[[@as SignalID]]
             if signal ~= nil and (signalid.type == "item" or signalid.type == "fluid") then
                 uiconfig.signal_filter = signal
                 local fsignal = uiutils.get_child(player, signal_filter_name)
@@ -588,7 +588,7 @@ end
 ---@param player LuaPlayer
 ---@param name string
 function uiframe.set_signal_filter(player, name)
-    local signalid = tools.sprite_to_signal(name)
+    local signalid = tools.id_to_signal(name)
     local field = uiutils.get_child(player, signal_filter_name)
     field.elem_value = signalid --[[@as SignalID]]
 
