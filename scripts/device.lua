@@ -353,7 +353,7 @@ local function on_entity_built(entity, tags)
                 local index = 1
                 while true do
                     local new_name = name .. "_" .. index
-                    if #game.train_manager.get_train_stops { surface.entity.surface, station_name = new_name, force = entity.force } == 0 then
+                    if #game.train_manager.get_train_stops { surface = entity.surface, station_name = new_name, force = entity.force } == 0 then
                         entity.backer_name = new_name
                         break
                     end
