@@ -656,8 +656,7 @@ end
 ---@param player LuaPlayer
 ---@return boolean
 function uiutils.can_teleport(player)
-    return game.active_mods["Teleporters"] and
-        player.force.technologies["teleporter"].enabled
+    return script.active_mods["Teleporters"] and player.force.technologies["teleporter"].enabled
 end
 
 ---@param player LuaPlayer
