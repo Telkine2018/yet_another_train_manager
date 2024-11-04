@@ -203,22 +203,20 @@ local function fix_device(device)
         device.is_parking = true
     end
 
-    if storage.debug_version < 5 then
-        local dconfig = device.dconfig
-        if dconfig then
-            if dconfig.red_wire_as_stock then
-                dconfig.red_wire_mode = 2
-            else
-                dconfig.red_wire_mode = 1
-            end
-            dconfig.red_wire_as_stock = nil
-        end
-
-        if device.red_wire_as_stock then
-            device.red_wire_mode = 2
+    local dconfig = device.dconfig
+    if dconfig then
+        if dconfig.red_wire_as_stock then
+            dconfig.red_wire_mode = 2
         else
-            device.red_wire_mode = 1
+            dconfig.red_wire_mode = 1
         end
+        dconfig.red_wire_as_stock = nil
+    end
+
+    if device.red_wire_as_stock then
+        device.red_wire_mode = 2
+    else
+        device.red_wire_mode = 1
     end
 end
 

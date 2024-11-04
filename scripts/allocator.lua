@@ -214,7 +214,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
     elseif goal_count == 1 then
         return depot_list[1]
     end
-    local result = game.request_train_path {
+    local result = game.train_manager.request_train_path {
         goals = goals,
         train = train.train,
         type = "any-goal-accessible"
@@ -727,7 +727,7 @@ function allocator.builder_compute_conf(builder)
     builder.builder_cargo_count = 0
     builder.builder_fluid_count = 0
     for name, count in pairs(content) do
-        local proto = prototypes.item[name]
+        local proto = prototypes.entity[name]
         if builder.builder_fuel_item and proto.type == "locomotive" then
             fuel_count = fuel_count + proto.get_inventory_size(defines.inventory.fuel) * stack_size * count
         end

@@ -558,7 +558,7 @@ function yutils.find_refueler(network, train)
         return refueler_list[1]
     end
 
-    local result = game.request_train_path {
+    local result = game.train_manager.request_train_path {
         goals = goals,
         train = train.train,
         type = "any-goal-accessible"
