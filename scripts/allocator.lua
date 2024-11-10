@@ -38,19 +38,9 @@ function allocator.find_free_depot(network, train, device, is_parking)
     local min_depot
     local min_d
     local min_priority
-    local network_mask = train.network_mask
 
     ---@param depot Device
     local function check_depot(depot)
-        if band(network_mask, depot.network_mask) == 0 then
-            depot.failcode = 63
-            return false
-        end
-        local patterns = depot.patterns
-        if patterns and not (patterns[train.gpattern] or patterns[train.rpattern]) then
-            depot.failcode = 64
-            return false
-        end
 
         if not depot.trainstop.connected_rail then
             depot.failcode = 67
@@ -228,10 +218,9 @@ end
 local device_distance = Pathing.device_distance
 
 ---@param device Device
----@param network_mask integer
 ---@param patterns {[string]:boolean}?
 ---@param is_item boolean?
-function allocator.find_train(device, network_mask, patterns, is_item)
+function allocator.find_train(device, patterns, is_item)
     local network = device.network
 
     local min_dist
@@ -316,12 +305,6 @@ function allocator.find_train(device, network_mask, patterns, is_item)
                     goto skip
                 end
 
-                if band(network_mask, train.network_mask) == 0 then
-                    candidate.failcode = 23
-                    device.failcode = device.failcode or candidate.failcode
-                    goto skip
-                end
-
                 --[[
                 if candidate.inactive then
                     candidate.failcode = 27
@@ -395,11 +378,6 @@ function allocator.find_train(device, network_mask, patterns, is_item)
         end
 
         if builder.freezed then goto skip_builder end
-
-        if band(network_mask, builder.network_mask) == 0 then
-            builder.failcode = 32
-            goto skip_builder
-        end
 
         if not builder.builder_pattern then
             builder.failcode = 34

@@ -95,7 +95,7 @@ local function reroute_train(train)
                 allocator.route_to_station(train, depot)
             end
         else
-            logger.report_depot_not_found(train.network, train.network_mask, train)
+            logger.report_depot_not_found(train.network, train)
             train.train.manual_mode = true
         end
     end
@@ -351,8 +351,11 @@ local function on_entity_built(entity, tags)
             local all = game.train_manager.get_train_stops { surface = entity.surface, station_name = name, force = entity.force }
             if #all == 2 then
                 local index = 1
+                local base_name = name
+                local start = string.gmatch(base_name, "([^_]+)_%d+")()
+                if start then base_name = start end
                 while true do
-                    local new_name = name .. "_" .. index
+                    local new_name = base_name .. "_" .. index
                     if #game.train_manager.get_train_stops { surface = entity.surface, station_name = new_name, force = entity.force } == 0 then
                         entity.backer_name = new_name
                         break
@@ -522,7 +525,6 @@ local function connect_train_to_device(device)
         else
             yutils.unlink_train_from_depots(train.depot, train)
             yutils.link_train_to_depot(device, train)
-            train.network_mask = device.network_mask
         end
     end
 end
@@ -677,7 +679,6 @@ local function process_device(device)
 
     -- depot role
     if role == depot_role then
-        device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
         device.is_parking = dconfig.is_parking
         read_virtual_signals()
@@ -691,7 +692,6 @@ local function process_device(device)
 
         local train = device.train
         if train then
-            train.network_mask = device.network_mask
             if monitor_train_states[train.state] then
                 if (game.tick - train.refresh_tick) >= fuel_refresh_delay then
                     yutils.check_refuel(train)
@@ -707,7 +707,6 @@ local function process_device(device)
             return
         end
 
-        device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
         device.rpriority = dconfig.rpriority or 0
         if device.conf_change then
@@ -1025,7 +1024,7 @@ local function process_device(device)
             device.max_load_time = dconfig.max_load_time
             if not device.train then
                 if not device.inactive then
-                    local train = allocator.find_train(device, device.network_mask, device.patterns)
+                    local train = allocator.find_train(device, device.patterns)
                     if not train then return end
                     yutils.unlink_train_from_depots(train.depot, train)
                     allocator.route_to_station(train, device);
@@ -1108,7 +1107,6 @@ local function process_device(device)
         end
 
         device.role = refueler_role
-        device.network_mask = dconfig.network_mask or default_network_mask
         device.priority = dconfig.priority or 0
         device.inactivity_delay = dconfig.inactivity_delay
 

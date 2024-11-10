@@ -257,7 +257,7 @@ local function create_fields(ftable, device)
     end
 
 
-    create_mask("network_mask", use_all_enable[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
+    create_mask("network_mask", use_carry[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
 
     add_numeric_field("priority", has_priority[role], np("priority-tooltip"), true)
     add_numeric_field("rpriority", role == defs.device_roles.builder, nil, true)

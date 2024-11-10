@@ -180,7 +180,6 @@ local prefix = commons.prefix
 ---@field refueler Device
 ---@field refresh_tick integer
 ---@field is_empty boolean
----@field network_mask integer
 ---@field splitted_schedule ScheduleRecord[][]?
 ---@field teleporting boolean
 ---@field timeout_tick integer

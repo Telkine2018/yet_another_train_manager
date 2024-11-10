@@ -165,7 +165,7 @@ data:extend({
         name = "yaltn-auto_rename_station",
 		setting_type = "runtime-global",
         order="av",
-        default_value = true
+        default_value = false
     }
 })
 

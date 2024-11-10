@@ -510,24 +510,11 @@ function uiutils.zoom_to(player, entity, follow)
                 freeze_history = true,
                 location_name = ""
             })
-            if follow and follow.surface_index == entity.surface_index then
-                player.zoom_to_world(entity.position, 0.5, follow)
-            end
             return
         end
     end
 
-    if entity.surface_index == player.surface_index then
-        player.close_map()
-        if follow and follow.surface_index ~= player.surface_index then
-            follow = nil
-        end
-        if follow then
-            player.zoom_to_world(entity.position, 0.5, follow)
-        else
-            player.zoom_to_world(entity.position, 0.5)
-        end
-    end
+    player.set_controller{type=defines.controllers.remote, position=entity.position, surface=entity.surface}
 end
 
 uiutils.np = np

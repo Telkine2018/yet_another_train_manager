@@ -830,7 +830,7 @@ function scheduler.process_request(request)
     if not buffer_feeder_roles[device.role] and not buffer_feeder_roles[candidate_device.role] then
         local patterns = trainconf.intersect_patterns(device.patterns, candidate_device.patterns)
         candidate_device.failcode = nil
-        train = find_train(candidate_device, device.network_mask, patterns, is_item)
+        train = find_train(candidate_device, patterns, is_item)
         if not train then
             if not request.train_notfound_logged then
                 logger.report_train_notfound(request)
@@ -871,7 +871,7 @@ function scheduler.process_request(request)
     elseif device.role == buffer_role then
         train = device.train
         if not train then
-            train = find_train(candidate_device, device.network_mask, device.patterns, is_item)
+            train = find_train(candidate_device, device.patterns, is_item)
             if not train then
                 request.failcode = 60
                 return

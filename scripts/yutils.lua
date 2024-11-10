@@ -473,7 +473,6 @@ function yutils.create_train(ttrain, station)
         network = station.network,
         state = defs.train_states.at_depot,
         depot = station,
-        network_mask = station.network_mask,
         refresh_tick = game.tick,
         front_stock = ttrain.front_stock,
         origin_id = station.id
@@ -527,15 +526,10 @@ end
 ---@param train Train
 ---@return Device?
 function yutils.find_refueler(network, train)
-    local network_mask = train.network_mask
-    local position = train.front_stock.position
     local refueler_list = {}
     local goals = {}
     for _, refueler in pairs(network.refuelers) do
         if refueler.train == nil then
-            if band(network_mask, refueler.network_mask) == 0 then
-                goto skip
-            end
 
             if refueler.patterns and not (refueler.patterns[train.gpattern] or refueler.patterns[train.rpattern]) then
                 goto skip
@@ -546,6 +540,7 @@ function yutils.find_refueler(network, train)
             if refueler.inactive then goto skip end
 
             table.insert(refueler_list, refueler)
+
             table.insert(goals, { train_stop = refueler.trainstop })
         end
         ::skip::

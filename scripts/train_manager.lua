@@ -226,7 +226,7 @@ end
 local function find_depot_and_route(network, train, device)
     local depot = allocator.find_free_depot(network, train, device)
     if not depot then
-        logger.report_depot_not_found(network, train.network_mask, train)
+        logger.report_depot_not_found(network, train)
         train.train.schedule = nil
         train.train.manual_mode = true
         train.state = defs.train_states.depot_not_found
@@ -347,7 +347,7 @@ local function on_train_changed_state(event)
                         if depot then
                             allocator.route_to_depot_same_surface(event.train, depot)
                         else
-                            logger.report_depot_not_found(device.network, device.network_mask, train)
+                            logger.report_depot_not_found(device.network, train)
                         end
                     else
                         yutils.add_train_to_depot(device, event.train)

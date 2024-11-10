@@ -274,16 +274,14 @@ function logger.event_depot_notfound_to_text(e)
 end
 
 ---@param network SurfaceNetwork
----@param network_mask integer
 ---@param train Train?
-function logger.report_depot_not_found(network, network_mask, train)
+function logger.report_depot_not_found(network, train)
 
     ---@type LogEvent
     local e = {
         force_id = network.force_index,
         type = commons.event_depot_not_found,
         network = network,
-        network_mask = network_mask,
         surface = network.surface_name,
         train = train
     }

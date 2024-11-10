@@ -31,8 +31,9 @@ local function np(name) return uidepots_prefix .. name end
 ---@type HeaderDef[]
 local header_defs = {
 
-    {name = "surface", width = 200}, {name = "network_mask", width = 100},
-    {name = "used", width = 100}, {name = "free", width = 100}, {name="last_use_date", width=80}
+    {name = "surface", width = 200}, 
+    {name = "used", width = 100}, 
+    {name = "free", width = 100}, {name="last_use_date", width=80}
 }
 
 ---@param tabbed_pane LuaGuiElement
@@ -78,7 +79,6 @@ end
 
 ---@class Statistic 
 ---@field surface string
----@field network_mask integer
 ---@field used_count integer
 ---@field free_count integer
 ---@field last_use_date integer?
@@ -96,16 +96,6 @@ local sort_methods = {
     ---@param a1 Assign
     ---@param a2 Assign
     function(a1, a2) return a1.surface > a2.surface end,
-
-    network_mask = --
-    ---@param a1 Assign
-    ---@param a2 Assign
-    function(a1, a2) return a1.network_mask < a2.network_mask end,
-
-    ["-network_mask"] = --
-    ---@param a1 Assign
-    ---@param a2 Assign
-    function(a1, a2) return a1.network_mask > a2.network_mask end,
 
     used = --
     ---@param a1 Assign
@@ -142,15 +132,13 @@ function uidepots.update(player)
     local depots_map = {}
     for _, device in pairs(devices) do
         if device.role == defs.device_roles.depot then
-            local key = device.network.surface_name .. "$$" ..
-                            device.network_mask
+            local key = device.network.surface_name
 
             ---@type Statistic
             local stat = depots_map[key]
             if not stat then
                 stat = {
                     surface = device.network.surface_name,
-                    network_mask = device.network_mask,
                     free_count = 0,
                     used_count = 0
                 }
@@ -193,15 +181,6 @@ function uidepots.update(player)
         }
         fsurface.style.horizontal_align = "center"
         fsurface.style.width = header_defs[field_index].width
-        field_index = field_index + 1
-
-        -------- Network
-        local fnetwork = row.add {
-            type = "label",
-            caption = tostring(stat.network_mask)
-        }
-        fnetwork.style.horizontal_align = "center"
-        fnetwork.style.width = header_defs[field_index].width
         field_index = field_index + 1
 
         -------- Used count
