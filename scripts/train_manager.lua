@@ -665,7 +665,7 @@ local function on_train_changed_state(event)
                     end
                 else
                     train.state = defs.train_states.to_depot
-                    local network = yutils.get_network(train.train.front_rail)
+                    local network = yutils.get_network(train.train.front_end.rail)
                     find_depot_and_route(network, train)
                 end
             elseif train.state == defs.train_states.feeder_loading then

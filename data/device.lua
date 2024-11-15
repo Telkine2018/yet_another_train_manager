@@ -114,6 +114,7 @@ tech = {
 	effects = {
 		{ type = 'unlock-recipe', recipe = commons.device_name }
 	},
+	prerequisites = { 'railway' },
 	unit = {
 		count = 200,
 		ingredients = {

@@ -145,15 +145,19 @@ local function show_selected(player, entity)
     vars.selected_device_id = entity.unit_number
     if not device then return end
 
-    if not device.trainstop or not device.trainstop.valid then
+    if not device.trainstop or not device.trainstop.valid or device.dconfig.role == 0 then
         local area = yutils.get_device_area(device, true)
         vars.selected_device_area_id = rendering.draw_rectangle {
             draw_on_ground = true,
             width = 2,
-            left_top = entity,
-            left_top_offset = area[1],
-            right_bottom = entity,
-            right_bottom_offset = area[2],
+            left_top = {
+                entity = entity,
+                offset = area[1]
+            },
+            right_bottom = {
+                entity = entity,
+                offset = area[2]
+            },
             surface = entity.surface,
             color = area_color,
             only_in_alt_mode = true
