@@ -1114,4 +1114,14 @@ tools.on_init(function()
     yutils.init_ui(context)
 end)
 
+---@param signalId SignalFilter
+---@return table
+function yutils.signal_name(signalId)
+
+    if signalId.type == "item" and string.find(signalId.name, "^deadlock%-stack") then
+        return { "", {"item-name." .. string.sub(signalId.name, 16)}, " (Stacked)"  }
+    end
+    return { signalId.type .. "-name." .. signalId.name }
+end
+
 return yutils

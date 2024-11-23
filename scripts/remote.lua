@@ -1,5 +1,6 @@
 
 local yutils = require("scripts.yutils")
+local defs = require("scripts._defs")
 
 
 remote.add_interface("yet_another_train_manager", {
@@ -30,7 +31,7 @@ remote.add_interface("yet_another_train_manager", {
             end
             device.secondary_controllers[controller_id] = true
         end
-        if train.delivery then
+        if train.delivery and train.state == defs.train_states.loading then
             local train_contents = yutils.get_train_content(train)
             local target_content = {}
             for name, count in pairs(train.delivery.content) do

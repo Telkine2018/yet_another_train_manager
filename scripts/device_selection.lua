@@ -319,7 +319,7 @@ local function show_selected(player, entity)
 
                     local text = { "yaltn-messages.tooltip_requested_item" }
                     table.insert(text, comma_value(amount))
-                    table.insert(text, { signalId.type .. "-name." .. signalId.name })
+                    table.insert(text, yutils.signal_name(signalId))
                     if request.failcode then
                         table.insert(text, { "", " (", { "yaltn-error.m" .. request.failcode }, ")" })
                     else
@@ -340,7 +340,7 @@ local function show_selected(player, entity)
                 ---@cast signalId -nil
                 table.insert(text, comma_value(amount))
                 -- table.insert(text, "[" .. signalId.type .. "=" .. signalId.name .. "]")
-                table.insert(text, { signalId.type .. "-name." .. signalId.name })
+                table.insert(text, yutils.signal_name(signalId))
                 draw_text(text)
                 if text_line > max_line then break end
             end
@@ -399,7 +399,7 @@ local function show_selected(player, entity)
                 for pattern in pairs(device.patterns) do
                     local markers = yutils.create_layout_strings(pattern)
                     local text = table.concat(markers)
-                    draw_text { "", text }
+                    draw_text(text)
                 end
             end
         end
