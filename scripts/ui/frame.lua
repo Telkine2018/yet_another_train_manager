@@ -206,9 +206,9 @@ local function open(player)
         type = "choose-elem-button",
         name = signal_filter_name,
         elem_type = "signal",
-        signal = filter_signal,
         style = "yatm_small_slot_button_default"
     }
+    signal_filter.elem_value = filter_signal
 
     --------------- Network
     label = search_panel1.add { type = "label", caption = { np("network_mask") } }
@@ -362,9 +362,9 @@ tools.on_named_event(signal_filter_name, defines.events.on_gui_elem_changed,
     function(e)
         local player = game.players[e.player_index]
         local uiconfig = get_uiconfig(player)
-        local signalid = e.element.elem_value --[[@as SignalID]]
-        local signal = tools.signal_to_sprite(signalid)
-        if signal ~= nil and (signalid.type == "item" or signalid.type == "fluid") then
+        local signalid = e.element.elem_value --[[@as SignalFilter]]
+        local signal = tools.signal_to_id(signalid)
+        if signal ~= nil and (not signal.type or signalid.type == "item" or signalid.type == "fluid") then
             uiconfig.signal_filter = signal
         else
             e.element.elem_value = nil
@@ -559,10 +559,9 @@ tools.on_named_event(uiutils.np("product_button_requested"), defines.events.on_g
         local uiconfig = get_uiconfig(player)
 
         if e.button == defines.mouse_button_type.left then
-            local signal = e.element.sprite --[[@as string]]
-            local signalid = tools.id_to_signal(signal) --[[@as SignalID]]
-            if signal ~= nil and (signalid.type == "item" or signalid.type == "fluid") then
-                uiconfig.signal_filter = signal
+            local signalid = e.element.elem_value
+            if signalid ~= nil and (not signalid.type or signalid.type == "item" or signalid.type == "fluid") then
+                uiconfig.signal_filter = tools.signal_to_id(signalid)
                 local fsignal = uiutils.get_child(player, signal_filter_name)
                 fsignal.elem_value = signalid
                 uiframe.set_station_state(player, 0)

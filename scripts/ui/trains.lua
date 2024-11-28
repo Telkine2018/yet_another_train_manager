@@ -39,7 +39,6 @@ local function np(name) return uitrains_prefix .. name end
 local header_defs = {
 
     { name = "map",           width = 100,        nosort = true }, { name = "state", width = 100 },
-    { name = "network_mask",  width = 80 },
     { name = "composition",   width = 200 },
     { name = "route",         width = 140,        nosort = true },
     { name = "shipment",      width = 8 * 42 + 2, nosort = true },
@@ -98,16 +97,6 @@ local sort_methods = {
     ---@param t1 Train
     ---@param t2 Train
         function(t1, t2) return t2.state < t1.state end,
-
-    network_mask = --
-    ---@param t1 Train
-    ---@param t2 Train
-        function(t1, t2) return t1.network_mask < t2.network_mask end,
-
-    ["-network_mask"] = --
-    ---@param t1 Train
-    ---@param t2 Train
-        function(t1, t2) return t2.network_mask < t1.network_mask end,
 
     last_use_date = --
     ---@param t1 Train
@@ -191,14 +180,6 @@ function uitrains.update(player)
         local fstate = row.add {
             type = "label",
             caption = state_label
-        }
-        fstate.style.horizontal_align = "center"
-        fstate.style.width = header_defs[field_index].width
-        field_index = field_index + 1
-
-        local fstate = row.add {
-            type = "label",
-            caption = tostring(train.network_mask)
         }
         fstate.style.horizontal_align = "center"
         fstate.style.width = header_defs[field_index].width
