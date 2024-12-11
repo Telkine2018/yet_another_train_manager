@@ -222,7 +222,9 @@ local function show_selected(player, entity)
                         ---@cast signalId -nil
                         table.insert(text, comma_value(amount))
                         --table.insert(text, "[" .. signalId.type .. "=" .. signalId.name .. "]")
-                        table.insert(text, { signalId.type .. "-name." .. signalId.name })
+                        
+                        
+                        table.insert(text, yutils.signal_name(signalId))
                         if delivery.provider == device then
                             table.insert(text, trainstop_to_text(delivery.requester))
                         else
