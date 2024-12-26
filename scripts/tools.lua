@@ -32,7 +32,6 @@ local function debug(msg)
     else
         table.insert(msg, 2, "[" .. time .. "] ")
     end
-
     log_index = log_index + 1
     log(msg)
     if tools.trace_console then
@@ -57,8 +56,8 @@ end
 function tools.is_tracing() return tracing end
 
 ---@param o any
-function tools.strip(o)
-    local s = string.gsub(serpent.block(o), "%s", "")
+function tools.strip(o) 
+    local s = string.gsub(serpent.block(o), "%s", "") 
     return s
 end
 
@@ -276,7 +275,7 @@ end
 
 ------------------------------------------------
 
----@param event integer
+---@param event integer | defines.events
 ---@param handler fun(EventData)
 ---@param filters ({["filter"]:string}|{["name"]:string})[]?
 function tools.on_event(event, handler, filters)
@@ -487,6 +486,7 @@ local function get_child(parent, name)
 
     local children = parent.children
     if not children then return nil end
+
     for _, e in ipairs(children) do
         child = get_child(e, name)
         if child then return child end
@@ -847,7 +847,7 @@ tools.opposite_directions = {
 }
 
 ---@param direction integer | defines.direction
----@return defines.direction
+---@return integer | defines.direction
 function tools.get_opposite_direction(direction)
     if direction == define_directions.north then
         return define_directions.south
