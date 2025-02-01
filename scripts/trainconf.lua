@@ -121,7 +121,7 @@ function trainconf.get_train_composition(train)
             end
         elseif generic_type == "cargo-wagon" or generic_type == "artillery-wagon" then
             generic_type = "c"
-            train.slot_count = train.slot_count + carriage.prototype.get_inventory_size(defines.inventory.cargo_wagon)
+            train.slot_count = train.slot_count + carriage.prototype.get_inventory_size(defines.inventory.cargo_wagon, carriage.quality)
             train.cargo_count = train.cargo_count + 1
             id = id + cargo_range
             if index <= 31 then

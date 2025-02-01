@@ -370,7 +370,8 @@ local function do_teleport(info)
             name = carriage.name,
             position = { x, y },
             force = force,
-            direction = direction
+            direction = direction,
+            quality = carriage.quality
         }
 
         if not created then
@@ -516,6 +517,7 @@ end
 ---@class CarriageTeleportInfo
 ---@field name string
 ---@field type string
+---@field quality string
 ---@field direction integer
 ---@field position MapPosition
 ---@field fuel_inv LuaInventory
@@ -652,6 +654,7 @@ function teleport.extract_teleportation_info(info)
         ---@type CarriageTeleportInfo
         local created = {
             name = carriage.name,
+            quality = carriage.quality.name,
             direction = direction --[[@as integer]],
             position = { x, y },
             type = carriage.type,
@@ -726,7 +729,8 @@ function teleport.apply_teleportation(ti)
             name = carriage.name,
             position = carriage.position,
             force = ti.force,
-            direction = carriage.direction --[[@as defines.direction]]
+            direction = carriage.direction --[[@as defines.direction]],
+            quality = carriage.quality
         }
 
         if not created then
