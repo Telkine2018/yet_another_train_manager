@@ -377,7 +377,6 @@ local identifier_signal = tools.build_virtual_signal(commons.prefix .. "-identif
 ---@param device Device
 function yutils.set_train_composition(train, device)
     if device.out_red.valid then
-
         local compo = {
             { value = loco_mask_signal,  min = train.loco_mask },
             { value = cargo_mask_signal, min = train.cargo_mask },
@@ -530,7 +529,6 @@ function yutils.find_refueler(network, train)
     local goals = {}
     for _, refueler in pairs(network.refuelers) do
         if refueler.train == nil then
-
             if refueler.patterns and not (refueler.patterns[train.gpattern] or refueler.patterns[train.rpattern]) then
                 goto skip
             end
@@ -1053,7 +1051,7 @@ end
 function yutils.set_device_output(device, filters)
     if not device.out_red.valid then return end
 
-    local section= (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+    local section = (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
     section.filters = filters
 
     section = (device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
@@ -1117,11 +1115,27 @@ end)
 ---@param signalId SignalFilter
 ---@return table
 function yutils.signal_name(signalId)
-
-    if signalId.type == "item" and string.find(signalId.name, "^deadlock%-stack") then
-        return { "", {"item-name." .. string.sub(signalId.name, 16)}, " (Stacked)"  }
+    if signalId.type == "item" then
+        if string.find(signalId.name, "^deadlock%-stack") then
+            local name = string.sub(signalId.name, 16)
+            return { "",
+                "[item=" .. name .. "]",
+                { "?",
+                    { "item-name." .. name },
+                    { "entity-name." .. name }
+                }, " (Stacked)" }
+        else
+            local name = signalId.name
+            return { "",
+                "[item=" .. name .. "]",
+                { "?",
+                    { "item-name." .. name },
+                    { "entity-name." .. name } }
+            }
+        end
+    else
+        return { "", "[" .. signalId.type .. "=" .. signalId.name .. "]", { signalId.type .. "-name." .. signalId.name } }
     end
-    return { signalId.type .. "-name." .. signalId.name }
 end
 
 return yutils
