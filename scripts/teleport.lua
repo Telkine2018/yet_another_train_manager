@@ -539,7 +539,7 @@ end
 ---@field currently_burning LuaItemPrototype?
 ---@field remaining_burning_fuel number?
 ---@field heat number?
----@field fuel ItemCountWithQuality[]
+---@field fuel ItemWithQualityCounts[]
 
 ---@param device Device
 ---@return boolean

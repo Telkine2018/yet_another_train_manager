@@ -41,7 +41,6 @@ function allocator.find_free_depot(network, train, device, is_parking)
 
     ---@param depot Device
     local function check_depot(depot)
-
         if not depot.trainstop.connected_rail then
             depot.failcode = 67
             return false
@@ -66,6 +65,13 @@ function allocator.find_free_depot(network, train, device, is_parking)
                     return false
                 end
             end
+        end
+
+        local patterns = depot.patterns
+        if patterns and table_size(patterns) > 0 and train.gpattern then
+            if patterns[train.gpattern] then return true end
+            if patterns[train.rpattern] then return true end
+            return false
         end
         return true
     end
@@ -451,9 +457,9 @@ function allocator.find_train(device, patterns, is_item)
 
     -- switch to connected netwok
     network = network.connected_network
-    if not network then 
+    if not network then
         device.failcode = device.failcode or 22
-        return nil 
+        return nil
     end
 
     local index = Pathing.find_closest_incoming_rail(device)
@@ -546,7 +552,7 @@ function allocator.builder_is_available(builder)
     if inv then
         local content = inv.get_contents()
         local content_map = {}
-        for _,item in pairs(content) do content_map[item.name] = item.count end
+        for _, item in pairs(content) do content_map[item.name] = item.count end
 
         for name, count in pairs(builder.builder_parts) do
             local existing = content_map[name] or 0
@@ -753,10 +759,10 @@ function allocator.builder_delete_train(train, builder)
 
     local ttrain = train.train
     local train_content = {}
-    for _, item in pairs(ttrain.get_contents()) do 
+    for _, item in pairs(ttrain.get_contents()) do
         local signalid = tools.signal_to_id(item)
         ---@cast signalid -nil
-        train_content[signalid] = count 
+        train_content[signalid] = count
     end
 
     -- collect content
@@ -794,11 +800,11 @@ function allocator.builder_delete_train(train, builder)
                 for signalid, count in pairs(train_content) do
                     local signal = tools.id_to_signal(signalid)
                     ---@cast signal -nil
-                    local inserted = inv.insert { name = signal.name, count = count, quality=signal.quality }
+                    local inserted = inv.insert { name = signal.name, count = count, quality = signal.quality }
                     if inserted ~= count then
-                        builder.entity.surface.spill_item_stack{
+                        builder.entity.surface.spill_item_stack {
                             position = builder.position,
-                            stack = { name = signalid, count = count - inserted } 
+                            stack = { name = signalid, count = count - inserted }
                         }
                     end
                 end
@@ -932,7 +938,7 @@ function allocator.route_to_station(train, device)
 
     if device.role == builder_role then
         local rails = device.entity.surface.find_entities_filtered {
-            name = {"straight-rail", "legacy-straight-rail"},
+            name = { "straight-rail", "legacy-straight-rail" },
             position = device.builder_entry
         }
         if #rails > 0 then
