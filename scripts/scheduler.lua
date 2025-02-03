@@ -668,13 +668,8 @@ local function create_delivery(request, candidate, train, content, existing_cont
 
     train.state = defs.train_states.to_producer
     local candidate_device = candidate.device
-    if candidate_device.role == defs.device_roles.feeder
-        and train.train.station == candidate_device.trainstop
-        and candidate_device.inactivity_delay then
-        scheduler.schedule_feeder_waiting_loading(train, candidate_device)
-    else
-        scheduler.create_delivery_schedule(delivery, existing_content)
-    end
+    candidate_device.inactivity_delay = nil
+    scheduler.create_delivery_schedule(delivery, existing_content)
 
     if device.network.reservations then
         device.network.reservations[request.name] = nil
@@ -720,35 +715,6 @@ local function create_delivery(request, candidate, train, content, existing_cont
     return delivery
 end
 scheduler.create_delivery = create_delivery
-
----@param train Train
----@param provider Device
-function scheduler.schedule_feeder_waiting_loading(train, provider)
-    local records = {}
-    local conditions = {
-        { type = "inactivity", compare_type = "or", ticks = provider.inactivity_delay * 60 }
-    }
-    if (provider.max_load_time and provider.max_load_time > 0) then
-        table.insert(conditions, { type = "time", compare_type = "or", ticks = provider.max_load_time * 60 })
-    end
-    table.insert(records, {
-        rail = provider.trainstop.connected_rail,
-        temporary = true,
-        rail_direction = provider.trainstop.connected_rail_direction,
-        wait_conditions = conditions
-    })
-
-    table.insert(records, {
-        rail = provider.trainstop.connected_rail,
-        temporary = true,
-        rail_direction = provider.trainstop.connected_rail_direction,
-        wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
-    })
-
-    local schedule = { current = 1, records = records }
-    train.train.schedule = schedule
-    train.state = defs.train_states.feeder_loading
-end
 
 ---@param request Request
 function scheduler.process_request(request)

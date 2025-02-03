@@ -77,7 +77,6 @@ local prefix = commons.prefix
 ---@field max_delivery integer?                             @ Max delivery
 ---@field priority integer?                                 @ Priority
 ---@field inactivity_delay integer?                         @ inactive delay (s) added to request
----@field max_load_time integer?                            @ max load time for feeder
 ---@field locked_slots integer?                             @ locked slot 
 ---@field delivery_timeout integer?                         @ Timeout (s) before reporting train
 ---@field threshold integer?                                @ default request threshold 

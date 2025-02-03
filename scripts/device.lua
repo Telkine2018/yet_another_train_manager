@@ -1021,7 +1021,6 @@ local function process_device(device)
             end
         elseif role == feeder_role then
             device.station_locked = dconfig.station_locked
-            device.max_load_time = dconfig.max_load_time
             if not device.train then
                 if not device.inactive then
                     local train = allocator.find_train(device, device.patterns)
