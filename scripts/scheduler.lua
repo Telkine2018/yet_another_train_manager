@@ -244,38 +244,54 @@ local function find_provider(request, forbidden, no_surface_change)
     if no_surface_change then
         return nil
     end
+
     network = network.connected_network
-    if not network then
-        return nil
-    end
-
-    productions = network.productions[request.name]
-    if not productions or not next(productions) then
-        return
-    end
-
-    local index = find_closest_incoming_rail(device)
-    if not index then
-        return nil
-    end
-
-    local trainstop = network.connecting_trainstops[index]
-    if not trainstop then
-        return nil
-    end
-    for _, production in pairs(productions) do
-        local production_device = production.device
-        local dist
-        if production_device.distance_cache then
-            dist = production_device.distance_cache[trainstop.unit_number]
+    if network then
+        productions = network.productions[request.name]
+        if not productions or not next(productions) then
+            return
         end
-        if not dist then
-            dist = Pathing.device_trainstop_distance(production_device, trainstop)
+
+        local index = find_closest_incoming_rail(device)
+        if not index then
+            return nil
         end
-        if dist > 0 then
-            check_production(production, dist)
+
+        local trainstop = network.connecting_trainstops[index]
+        if not trainstop then
+            return nil
+        end
+        for _, production in pairs(productions) do
+            local production_device = production.device
+            local dist
+            if production_device.distance_cache then
+                dist = production_device.distance_cache[trainstop.unit_number]
+            end
+            if not dist then
+                dist = Pathing.device_trainstop_distance(production_device, trainstop)
+            end
+            if dist > 0 then
+                check_production(production, dist)
+            end
         end
     end
+
+    network = device.network
+    if device.teleporter_in_range and not device.teleporter_in_range.inactive then
+        local context = yutils.get_context()
+        for _, candidate_network in pairs(context.networks[network.force_index]) do
+            if candidate_network ~= network then
+                local productions = candidate_network.productions[request.name]
+
+                for _, production in pairs(productions) do
+                    if production.device.teleporter_in_range and not production.device.teleporter_in_range.inactive then
+                        check_production(production, 0)
+                    end
+                end
+            end
+        end
+    end
+
     return candidate
 end
 
@@ -293,7 +309,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
 
     ---@type ScheduleRecord[]
     local records = {}
-    local teleport_pos = train.front_stock.position
+    local train_pos = train.front_stock.position
 
     -- goto provider
     if not buffer_feeder_roles[delivery.provider.role] then
@@ -328,7 +344,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             if front_stock.surface_index ~= provider.network.surface_index then
                 local from_network = yutils.get_network_base(front_stock.force_index, front_stock.surface_index)
                 local station = multisurf.add_cross_network_trainstop(from_network, front_stock.position, records)
-                if station then teleport_pos = station.position end
+                if station then train_pos = station.position end
                 table.insert(records, {
                     station = provider.trainstop.backer_name,
                     wait_conditions = load_condition
@@ -336,14 +352,22 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
                 table.insert(splitted_schedule, records)
                 records = {}
             end
+            teleport.add_teleporter(provider.network, train_pos, provider.position, records)
+        else
+            if train.front_stock.surface_index ~= provider.network.surface_index then
+                local src_network = yutils.get_context().networks[train.front_stock.force_index][train.front_stock.surface_index]
+                
+                table.insert(splitted_schedule, records)
+                records = teleport.add_teleporter(src_network, train_pos, provider.position, records, provider.network)
+            else
+                teleport.add_teleporter(provider.network, train_pos, provider.position, records)
+            end
         end
-
-        teleport.add_teleporter(provider.network, teleport_pos, provider.position, records)
 
         local backer_name = provider.trainstop.backer_name
         local needed
         if config.allow_trainstop_name_routing then
-            local station_list = game.train_manager.get_train_stops { 
+            local station_list = game.train_manager.get_train_stops {
                 surface = provider.trainstop.surface, station_name = backer_name, force = provider.trainstop.force }
             needed = #station_list > 1
         else
@@ -363,7 +387,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             station = backer_name,
             wait_conditions = load_condition
         })
-        teleport_pos = provider.position
+        train_pos = provider.position
 
         if requester.role == buffer_role then
             table.insert(records, {
@@ -383,10 +407,9 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
         if (provider.network.surface_index ~= requester.network.surface_index) then
             local front_stock = delivery.train.front_stock
 
-            local index = #records + 1
             local station = multisurf.add_cross_network_trainstop(
                 provider.network, front_stock.position, records)
-            if station then teleport_pos = station.position end
+            if station then train_pos = station.position end
             table.insert(records, {
                 station = delivery.requester.trainstop.backer_name,
                 wait_conditions = { { type = "empty", compare_type = "and" } }
@@ -397,16 +420,21 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
     end
 
     if delivery.requester.role ~= buffer_role then
-        teleport.add_teleporter(requester.network, teleport_pos,
-            requester.position, records)
 
+        if not provider or requester.network == provider.network then
+            teleport.add_teleporter(requester.network, train_pos, requester.position, records)
+        else
+            table.insert(splitted_schedule, records)
+            records = teleport.add_teleporter(provider.network, train_pos, requester.position, records, requester.network)
+            ---@cast records -nil
+        end
 
         local backer_name = requester.trainstop.backer_name
         local needed
         if config.allow_trainstop_name_routing then
-            local station_list = game.train_manager.get_train_stops { 
-                surface =  requester.trainstop.surface,
-                station_name = backer_name, 
+            local station_list = game.train_manager.get_train_stops {
+                surface = requester.trainstop.surface,
+                station_name = backer_name,
                 force = requester.trainstop.force }
             needed = #station_list > 1
         else

@@ -28,7 +28,6 @@ end
 ---@param to_device Device
 ---@return number
 function pathingd.rail_device_distance(rail, to_device)
-
     local p1 = rail.position
     local p2 = to_device.entity.position
     local dist = distance(p1, p2)
@@ -46,7 +45,6 @@ end
 ---@param to_device Device
 ---@return number
 function pathingd.device_distance(from_device, to_device)
-
     local p1 = from_device.entity.position
     local p2 = to_device.entity.position
     local dist = distance(p1, p2)
@@ -62,7 +60,6 @@ end
 ---@param train Train
 ---@param to_device Device
 function pathingd.train_distance(train, to_device)
-
     local p1 = train.front_stock.position
     local p2 = to_device.entity.position
     local dist = distance(p1, p2)
@@ -72,7 +69,6 @@ end
 ---@param train Train
 ---@param trainstop LuaEntity
 function pathingd.train_trainstop_distance(train, trainstop)
-
     local p1 = train.front_stock.position
     local p2 = trainstop.position
     local dist = distance(p1, p2)

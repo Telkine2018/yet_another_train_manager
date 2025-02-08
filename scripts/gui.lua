@@ -268,6 +268,7 @@ local function create_fields(ftable, device)
     add_numeric_field("inactivity_delay", use_carry[role], np("inactivity_delay.tooltip"))
     add_numeric_field("delivery_penalty", use_provider_not_buffer[role], nil, true)
     add_numeric_field("teleport_range", role == defs.device_roles.teleporter, nil, false)
+    add_boolean_field("planet_teleporter", role == defs.device_roles.teleporter, np("planet_teleporter.tooltip"))
     add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"))
 
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
@@ -1002,6 +1003,8 @@ local function update_runtime_config(device, player)
     device_manager.delete_red_input(device)
     device_manager.delete_green_input(device)
 
+    yutils.register_network_to_compute(device.network)
+
     local dconfig = device.dconfig
     device.patterns = dconfig.patterns or device.scanned_patterns
     device.has_specific_pattern = dconfig.has_specific_pattern
@@ -1214,6 +1217,7 @@ local function save_values(player)
     save_number("delivery_penalty", 1, nil)
     save_number("teleport_range", 60, nil)
 
+    save_boolean("planet_teleporter")
     save_boolean("is_parking")
     save_boolean("station_locked")
     save_boolean("green_wire_as_priority")

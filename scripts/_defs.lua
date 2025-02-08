@@ -59,6 +59,7 @@ local prefix = commons.prefix
 ---@field scanned_patterns {[string]:boolean}
 ---@field distance_cache {[integer]:number}
 ---@field inactive integer?
+---@field teleporter_in_range Device
 
 ---@class BuilderConfig
 ---@field builder_locomotive_item string
@@ -83,6 +84,7 @@ local prefix = commons.prefix
 ---@field delivery_penalty integer?                         @ Distance penalty for each penalty
 ---@field station_locked boolean?                           @ Locked to station
 ---@field teleport_range integer?                           @ teleporter range
+---@field planet_teleporter boolean?                        @ planet teleporter
 ---@field combined boolean?                                 @ Combined request
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
@@ -136,18 +138,12 @@ local prefix = commons.prefix
 ---@field connecting_ids table<string, boolean>
 ---@field is_orbit boolean
 ---@field teleporters table<integer, Device>
----@field production_indexes table<string, ProductionIndex[]>   @ not used
 ---@field trainstats table<string, integer>
 ---@field trainstats_tick integer
 ---@field trainstats_change boolean
 ---@field reservations table<string, boolean>
 ---@field reservations_tick integer
-
----@class ProductionIndex
----@field priority integer
----@field name string
----@field node_index SpatialIndexLink?
----@field productions Request[]
+---@field has_planet_teleporter boolean
 
 ---@class Delivery
 ---@field requester Device

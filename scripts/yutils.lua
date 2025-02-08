@@ -962,7 +962,12 @@ function yutils.content_to_item_map(content)
     for name, count in pairs(content) do
         local signalid = tools.id_to_signal(name) --[[@as SignalID]]
         if signalid.type == "item" then
-            item_map[signalid.name] = count
+            local qname = signalid.name
+            ---@cast qname -nil
+            if signalid.quality and signalid.quality ~= "normal" then
+                qname = qname .. "/" .. signalid.quality 
+            end
+            item_map[qname] = count
         end
     end
     return item_map
@@ -1127,7 +1132,7 @@ function yutils.signal_name(signalId)
         else
             local name = signalId.name
             return { "",
-                "[item=" .. name .. "]",
+                "[item=" .. name .. ",quality=" .. (signalId.quality or "normal") .. "]",
                 { "?",
                     { "item-name." .. name },
                     { "entity-name." .. name } }
@@ -1137,5 +1142,64 @@ function yutils.signal_name(signalId)
         return { "", "[" .. signalId.type .. "=" .. signalId.name .. "]", { signalId.type .. "-name." .. signalId.name } }
     end
 end
+
+
+---@param network SurfaceNetwork
+local function compute_teleporter_infos(network)
+    network.has_planet_teleporter = nil
+    if network.teleporters then
+        local teleporters = {}
+        for _, teleporter in pairs(network.teleporters) do
+            if teleporter.dconfig.planet_teleporter then
+                table.insert(teleporters, teleporter)
+            end
+        end
+        if #teleporters > 0 then
+            local node = spatial_index.build(teleporters)
+            local teleport_role = defs.device_roles.teleporter
+            local find_device = spatial_index.find_device
+            local surface_index = network.surface_index
+            local distance = tools.distance
+
+            ---@type Device
+            for _, device in pairs(devices_runtime.map) do
+                local d = device --[[@as Device]]
+                if d.dconfig.role ~= teleport_role and d.network.surface_index == surface_index then
+                    d.teleporter_in_range = nil
+                    if d.position then
+                        local found_teleporter = find_device(node, d) --[[@as Device]]
+                        local dist = distance(d.position, found_teleporter.position)
+                        if dist < found_teleporter.teleport_range then
+                            d.teleporter_in_range = found_teleporter
+                            network.has_planet_teleporter = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+---@param network SurfaceNetwork
+function yutils.register_network_to_compute(network)
+    local networks_to_compute = storage.networks_to_compute
+    local key = network.force_index .. "_" .. network.surface_index
+    if networks_to_compute then
+        networks_to_compute[key] = network
+    else
+        networks_to_compute = { [key] = network }
+        storage.networks_to_compute = networks_to_compute
+    end
+end
+
+tools.on_nth_tick(10, function()
+    local networks_to_compute = storage.networks_to_compute
+    if not networks_to_compute then return end
+    storage.networks_to_compute = nil
+    for _, network in pairs(networks_to_compute) do
+        compute_teleporter_infos(network)
+    end
+end
+)
 
 return yutils

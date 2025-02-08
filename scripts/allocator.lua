@@ -153,6 +153,7 @@ function allocator.find_free_depot(network, train, device, is_parking)
 
             local output = connected_network.connecting_outputs[index]
             local id = -output.unit_number
+            min_priority = nil
             for _, depot in pairs(connected_network.free_depots) do
                 if depot.train == nil then
                     local d
@@ -194,6 +195,33 @@ function allocator.find_free_depot(network, train, device, is_parking)
                 return min_depot
             end
         end
+
+        if network.has_planet_teleporter then
+            local context = yutils.get_context()
+            for _, other_network in pairs(context.networks[network.force_index]) do
+                ---@cast other_network SurfaceNetwork
+                if other_network ~= network and other_network.has_planet_teleporter then
+                    min_depot = nil
+                    min_priority = nil
+                    for _, depot in pairs(other_network.free_depots) do
+                        if depot.train == nil and depot.teleporter_in_range and not depot.teleporter_in_range.inactive then
+                            if min_priority and min_priority > depot.priority then
+                                goto skip
+                            end
+                            if check_depot(depot) then
+                                min_depot = depot
+                                min_priority = depot.priority
+                            end
+                            ::skip::
+                        end
+                    end
+                    if min_depot then
+                        min_depot.last_used_date = game.tick
+                        return min_depot
+                    end
+                end
+            end
+        end
     end
 
     local depot_list = {}
@@ -233,12 +261,13 @@ function allocator.find_train(device, patterns, is_item)
     local min_priority
     local min_train
     local min_builder
+    local need_teleporter
 
     local pending_trains = {}
 
     local dst_id = device.id
     local dst_position = device.position
-    local f_effective_distance = function(candidate)
+    local f_trainstop_distance = function(candidate)
         return device_distance(candidate, device)
     end
     local f_train_distance = function(train)
@@ -262,7 +291,7 @@ function allocator.find_train(device, patterns, is_item)
                         if not candidate.trainstop.connected_rail then
                             goto skip
                         end
-                        d = f_effective_distance(candidate)
+                        d = f_trainstop_distance(candidate)
                     end
                 else
                     if pending_trains then
@@ -311,14 +340,6 @@ function allocator.find_train(device, patterns, is_item)
                     goto skip
                 end
 
-                --[[
-                if candidate.inactive then
-                    candidate.failcode = 27
-                    device.failcode = device.failcode or candidate.failcode
-                    goto skip
-                end
-                --]]
-
                 if not defs.train_available_states[train.state] then
                     goto skip
                 end
@@ -333,6 +354,10 @@ function allocator.find_train(device, patterns, is_item)
                             goto skip
                         end
                     end
+                end
+
+                if need_teleporter and not (candidate.teleporter_in_range and not candidate.teleporter_in_range.inactive) then
+                    goto skip
                 end
 
                 min_dist = d
@@ -371,7 +396,7 @@ function allocator.find_train(device, patterns, is_item)
             if not builder.trainstop.connected_rail then
                 goto skip_builder
             end
-            d = f_effective_distance(builder)
+            d = f_trainstop_distance(builder)
         end
         if d < 0 then
             goto skip_builder
@@ -455,60 +480,103 @@ function allocator.find_train(device, patterns, is_item)
         return allocator.builder_create_train(min_builder)
     end
 
+    ---@type Device
+    local candidate_depot
+
+    -- to scan a network
+    ---@param network SurfaceNetwork
+    local function find_train_in_network(network)
+        pending_trains = {}
+        min_train = nil
+        min_dist = nil
+        min_builder = nil
+        min_priority = nil
+
+        for _, depot in pairs(network.used_depots) do
+            local train = depot.train
+            ---@cast depot Device
+
+            depot.failcode = nil
+            if not depot.inactive then
+                if not need_teleporter or (depot.teleporter_in_range and not depot.teleporter_in_range.inactive) then
+                    candidate_depot = depot
+                    test_train(depot, train)
+                    if depot.role == builder_role then
+                        test_builder(depot)
+                    end
+                end
+            end
+        end
+
+        if pending_trains then
+            local train_to_scan = pending_trains
+            pending_trains = nil
+            for _, train in pairs(train_to_scan) do
+                test_train(train.depot, train)
+            end
+        end
+        if min_train then
+            local gametick = game.tick
+            min_train.last_use_date = gametick
+            if min_train.depot then
+                min_train.depot.last_used_date = gametick
+            end
+            return min_train
+        end
+
+        if min_builder then
+            min_train               = allocator.builder_create_train(min_builder)
+            min_train.last_use_date = game.tick
+            return min_train
+        end
+        return nil
+    end
+
     -- switch to connected netwok
-    network = network.connected_network
-    if not network then
-        device.failcode = device.failcode or 22
-        return nil
-    end
+    local se_network = network.connected_network
+    if se_network then
+        local se_index = Pathing.find_closest_incoming_rail(device)
+        if se_index then
+            local se_trainstop = se_network.connecting_trainstops[se_index]
 
-    local index = Pathing.find_closest_incoming_rail(device)
-    if not index then
-        device.failcode = device.failcode or 22
-        return nil
-    end
+            --- Reset variable
+            dst_id = se_trainstop.unit_number
+            dst_position = se_trainstop.position
+            f_trainstop_distance = function(candidate)
+                return Pathing.device_trainstop_distance(candidate, se_trainstop)
+            end
+            f_train_distance = function(train)
+                return Pathing.train_trainstop_distance(train, se_trainstop)
+            end
 
-    local trainstop = network.connecting_trainstops[index]
-
-    --- Reset variable
-    dst_id = trainstop.unit_number
-    dst_position = trainstop.position
-    f_effective_distance = function(candidate)
-        return Pathing.device_trainstop_distance(candidate, trainstop)
-    end
-    f_train_distance = function(train)
-        return Pathing.train_trainstop_distance(train, trainstop)
-    end
-    pending_trains = {}
-
-    for _, depot in pairs(network.used_depots) do
-        local train = depot.train
-
-        depot.failcode = nil
-        test_train(depot, train)
-        if depot.role == builder_role then
-            test_builder(depot)
+            find_train_in_network(se_network)
+            if min_train then
+                return min_train
+            end
         end
     end
 
-    if pending_trains then
-        local train_to_scan = pending_trains
-        pending_trains = nil
-        for _, train in pairs(train_to_scan) do
-            test_train(train.depot, train)
-        end
-    end
-    if min_train then
-        local gametick = game.tick
-        min_train.last_use_date = gametick
-        if min_train.depot then
-            min_train.depot.last_used_date = gametick
-        end
-        return min_train
-    end
+    if device.teleporter_in_range and not device.teleporter_in_range.inactive then
+        local context = yutils.get_context()
+        need_teleporter = true
+        for _, candidate_network in pairs(context.networks[network.force_index]) do
+            if candidate_network ~= network then
+                f_trainstop_distance = function(candidate)
+                    return 0
+                end
+                f_train_distance = function(train)
+                    if defs.train_at_station[train.state] then
+                        return 0
+                    end
+                    return Pathing.train_distance(train, candidate_depot)
+                end
 
-    if min_builder then
-        return allocator.builder_create_train(min_builder)
+                find_train_in_network(candidate_network)
+                if min_train then
+                    return min_train
+                end
+            end
+        end
     end
 
     device.failcode = device.failcode or 22
@@ -908,7 +976,7 @@ end
 function allocator.route_to_station(train, device)
     local records = {}
     local ttrain = train.train
-    local change_surface_records
+    local starter_records
 
     device.freezed = false
     local trainstop = device.trainstop
@@ -929,12 +997,20 @@ function allocator.route_to_station(train, device)
                     { type = "inactivity", compare_type = "and", ticks = 300 }
                 }
             })
-            change_surface_records = records
+            starter_records = records
             records = {}
         end
+        teleport.add_teleporter(device.network, teleport_pos, device.position, records)
+    else
+        local front_stock = train.front_stock
+        if front_stock.surface_index ~= device.entity.surface_index then
+            local from_network = yutils.get_context().networks[front_stock.force_index][front_stock.surface_index]
+            starter_records = records
+            records = teleport.add_teleporter(from_network, teleport_pos, device.position, records, device.network)
+        else
+            teleport.add_teleporter(device.network, teleport_pos, device.position, records)
+        end
     end
-
-    teleport.add_teleporter(device.network, teleport_pos, device.position, records)
 
     if device.role == builder_role then
         local rails = device.entity.surface.find_entities_filtered {
@@ -978,9 +1054,9 @@ function allocator.route_to_station(train, device)
         }
     })
 
-    if (change_surface_records) then
+    if (starter_records) then
         train.splitted_schedule = { records }
-        ttrain.schedule = { current = 1, records = change_surface_records }
+        ttrain.schedule = { current = 1, records = starter_records }
     else
         ttrain.schedule = { current = 1, records = records }
         train.splitted_schedule = {}

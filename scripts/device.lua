@@ -106,6 +106,7 @@ local function clear_device(device)
     local role = device.role
     if not role then return end
 
+    yutils.register_network_to_compute(device.network)
     device.role = nil
 
     local network = device.network
@@ -1124,6 +1125,7 @@ local function process_device(device)
             }) --[[@as LuaEntity]]
         end
         device.teleport_range = dconfig.teleport_range or config.teleport_range
+        device.planet_teleporter = dconfig.planet_teleporter or config.planet_teleporter
         read_virtual_signals()
         local trains = device.trainstop.get_train_stop_trains()
         local count = 0

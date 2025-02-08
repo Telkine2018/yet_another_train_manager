@@ -36,52 +36,81 @@ function teleport.try_teleport(device) end
 ---@param network SurfaceNetwork
 ---@param start_pos MapPosition
 ---@param target_pos MapPosition
----@param records ScheduleRecord[]
----@return boolean ?
-function teleport.add_teleporter(network, start_pos, target_pos, records)
+---@param starter_records ScheduleRecord[]
+---@param dst_network SurfaceNetwork?
+---@return ScheduleRecord[] ?
+function teleport.add_teleporter(network, start_pos, target_pos, starter_records, dst_network)
     if not network.teleporters then return end
 
     local dd = distance(start_pos, target_pos)
     if dd < config.teleport_min_distance then return end
 
-    local min_d1
     local min_tlp1
-    local min_d2
     local min_tlp2
-    for _, tlp in pairs(network.teleporters) do
-        if not tlp.inactive and tlp.trainstop and tlp.trainstop.valid then
-            local d1 = distance(tlp.position, start_pos)
-            if d1 < tlp.teleport_range then
+    local surface_change
+    if not dst_network or network == dst_network then
+        local min_d1
+        local min_d2
+        for _, tlp in pairs(network.teleporters) do
+            if not tlp.inactive and tlp.trainstop and tlp.trainstop.valid then
+                local d1 = distance(tlp.position, start_pos)
+                if d1 < tlp.teleport_range then
+                    if not min_d1 or min_d1 > d1 then
+                        min_d1 = d1
+                        min_tlp1 = tlp
+                    end
+                end
+
+                local d2 = distance(tlp.position, target_pos)
+                if d2 < tlp.teleport_range then
+                    if not min_d2 or min_d2 > d2 then
+                        min_d2 = d2
+                        min_tlp2 = tlp
+                    end
+                end
+            end
+        end
+
+        if min_tlp1 == min_tlp2 then return end
+        if not min_d1 or not min_d2 then return end
+
+        if min_d1 + min_d2 > dd / config.teleport_threshold then return end
+    else
+        surface_change = true
+        local min_d1
+        local min_d2
+        for _, tlp in pairs(network.teleporters) do
+            if not tlp.inactive and tlp.trainstop and tlp.trainstop.valid then
+                local d1 = distance(tlp.position, start_pos)
                 if not min_d1 or min_d1 > d1 then
                     min_d1 = d1
                     min_tlp1 = tlp
                 end
             end
+        end
+        if not min_tlp1 then return nil end
 
-            local d2 = distance(tlp.position, target_pos)
-            if d2 < tlp.teleport_range then
+        for _, tlp in pairs(dst_network.teleporters) do
+            if not tlp.inactive and tlp.trainstop and tlp.trainstop.valid then
+                local d2 = distance(tlp.position, target_pos)
                 if not min_d2 or min_d2 > d2 then
                     min_d2 = d2
                     min_tlp2 = tlp
                 end
             end
         end
+        if not min_tlp2 then return nil end
     end
 
-    if min_tlp1 == min_tlp2 then return end
-    if not min_d1 or not min_d2 then return end
+    local teleporter1 = min_tlp1.trainstop
+    local tp_rail1 = teleporter1.connected_rail
+    if not (tp_rail1 and tp_rail1.valid) then return end
 
-    if min_d1 + min_d2 > dd / config.teleport_threshold then return end
-
-    local trainstop = min_tlp1.trainstop
-    local connected_rail = trainstop.connected_rail
-    if not (connected_rail and connected_rail.valid) then return end
-
-    local rail_direction = trainstop.connected_rail_direction
+    local rail_direction = teleporter1.connected_rail_direction
     local rev_rail_direction = rail_direction == defines.rail_direction.front and defines.rail_direction.back or defines.rail_direction.front
 
     ---@type LuaEntity?
-    local rail = connected_rail.get_rail_segment_end(rev_rail_direction)
+    local rail = tp_rail1.get_rail_segment_end(rev_rail_direction)
     if not rail then return end
     rail = rail.get_connected_rail {
         rail_direction = rev_rail_direction,
@@ -94,7 +123,7 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
     }
 
     if rail then
-        table.insert(records, {
+        table.insert(starter_records, {
 
             rail = rail,
             temporary = true,
@@ -103,15 +132,15 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
         })
     end
 
-    table.insert(records, {
-        rail = connected_rail,
+    table.insert(starter_records, {
+        rail = tp_rail1,
         temporary = true,
         rail_direction = rail_direction,
         wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
     })
 
-    table.insert(records, {
-        station = trainstop.backer_name,
+    table.insert(starter_records, {
+        station = teleporter1.backer_name,
         wait_conditions = {
             {
                 type = "time",
@@ -121,6 +150,13 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
         }
     })
 
+    local records
+    if surface_change then
+        records = {}
+    else
+        records = starter_records
+    end
+
     table.insert(records, {
         rail = min_tlp2.trainstop.connected_rail,
         temporary = true,
@@ -128,7 +164,7 @@ function teleport.add_teleporter(network, start_pos, target_pos, records)
         wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
     })
 
-    return true
+    return records
 end
 
 ---@class TeleportInfo
@@ -157,7 +193,7 @@ local function get_teleport_info(device)
     if ttrain == nil then return nil, false end
 
     local context = get_context()
-    local train = context.trains[ttrain.id]
+    local train = context.trains[ttrain.id] --[[@as Train]]
     if not train then return nil, false end
 
     if not device.ebuffer then return nil, true end
@@ -169,9 +205,23 @@ local function get_teleport_info(device)
 
     local schedule = ttrain.schedule
     ---@cast schedule -nil
-    local r = schedule.records[schedule.current + 1]
-    local connected_rail = r.rail
-    if not connected_rail then
+
+    local r
+    local connected_rail
+    if schedule.current < #schedule.records then
+        r = schedule.records[schedule.current + 1]
+        train.splitted_schedule = nil
+        schedule.current = schedule.current + 2
+    else
+        if not train.splitted_schedule or #train.splitted_schedule == 0 then
+            device.failcode = 202
+            return nil, true
+        end
+        r = train.splitted_schedule[1][1]
+        schedule = { current = 1, records = train.splitted_schedule[1] }
+    end
+    connected_rail = r.rail
+    if not connected_rail or not connected_rail.valid then
         device.failcode = 202
         return nil, true
     end
@@ -181,7 +231,6 @@ local function get_teleport_info(device)
         device.failcode = 203
         return nil, true
     end
-
 
     local rail_direction = dst_trainstop.connected_rail_direction
     local rev_rail_direction = rail_direction == defines.rail_direction.front and defines.rail_direction.back or defines.rail_direction.front
@@ -328,6 +377,10 @@ local function reconnect_trains(train, newtrain)
 
     train.teleporting = false
     trains_runtime:add(train)
+
+    if train.splitted_schedule then
+        table.remove(train.splitted_schedule, 1)
+    end
 end
 
 ---@param info TeleportInfo
@@ -355,7 +408,7 @@ local function do_teleport(info)
     local y = pos1.y + yd * 3
 
     local first
-    local surface = device.entity.surface
+    local surface = info.dst_device.entity.surface
     local force = device.entity.force
 
     local create_list = {}
@@ -464,7 +517,7 @@ local function do_teleport(info)
 
     for _, carriage in pairs(ttrain.carriages) do carriage.destroy() end
 
-    schedule.current = schedule.current + 2
+    -- schedule.current = schedule.current + 2
     first.train.schedule = schedule
     first.train.manual_mode = false
 
@@ -637,14 +690,13 @@ function teleport.extract_teleportation_info(info)
     ---@type TrainTeleportInfo
     local result = {
         force = force --[[@as LuaForce]],
-        surface = surface,
+        surface = info.dst_device.surface,
         carriages = {},
-        schedule = ttrain.schedule,
+        schedule = info.schedule,
         train = train,
         info = info
     }
 
-    local index = 1
     for _, carriage in pairs(carriages) do
         local direction = dst_trainstop.direction
         if back_movers[carriage.unit_number] then
@@ -817,7 +869,7 @@ function teleport.apply_teleportation(ti)
     ti.info.dst_device.teleport_rcount = (ti.info.dst_device.teleport_rcount or 0) + 1
 
     local schedule = ti.schedule
-    schedule.current = schedule.current + 2
+    -- schedule.current = schedule.current + 2
     first.train.schedule = schedule
     first.train.manual_mode = false
 
