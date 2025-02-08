@@ -684,13 +684,13 @@ function teleport.extract_teleportation_info(info)
     local y = pos1.y + yd * 3
 
     local first
-    local surface = device.entity.surface
+    local surface = info.dst_device.entity.surface
     local force = device.entity.force
 
     ---@type TrainTeleportInfo
     local result = {
         force = force --[[@as LuaForce]],
-        surface = info.dst_device.surface,
+        surface = surface,
         carriages = {},
         schedule = info.schedule,
         train = train,
