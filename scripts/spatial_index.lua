@@ -344,11 +344,6 @@ local function build_1(indexables, no_reload)
     end
 end
 
----@param indexes ProductionIndex[]
-local function sort_indexes(indexes)
-    if #indexes <= 1 then return end
-    table.sort(indexes, function(i1, i2) return i2.priority < i1.priority end)
-end
 
 ---@param node SpatialIndexLink
 ---@param device IndexableEntity
