@@ -2,6 +2,7 @@ local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local Runtime = require("scripts.runtime")
 local pathingd = require("scripts.pathingd")
+local config = require("scripts.config")
 
 local pathing = {}
 
@@ -20,8 +21,8 @@ local back_direction = defines.rail_direction.back
 
 local steps_limit = nil
 
----@param direction integer
----@return integer
+---@param direction defines.rail_direction
+---@return defines.rail_direction
 local function opposite(direction)
     return direction == front_direction and back_direction or front_direction
 end
@@ -35,17 +36,17 @@ function pathing.device_trainstop_distance(from_device, to_trainstop)
     local path_request = {
         type = request_type,
         goals = { { train_stop = to_trainstop } },
-        from_front = {
+        starts = { {
             rail = rail,
             direction = direction
         },
-        from_back = {
-            rail = rail,
-            direction = opposite(direction)
-        },
+            {
+                rail = rail,
+                direction = opposite(direction)
+            } },
         steps_limit = steps_limit
     }
-    local result = game.request_train_path(path_request)
+    local result = game.train_manager.request_train_path(path_request)
     local dist
     if not result.found_path then
         dist = -1
@@ -69,15 +70,16 @@ function pathing.rail_device_distance(rail, to_device)
         goals = { { train_stop = to_device.trainstop } },
         steps_limit = steps_limit
     }
-    path_request.from_front = {
+    path_request.starts = { {
         rail = rail,
         direction = defines.rail_direction.front
+    },
+        {
+            rail = rail,
+            direction = defines.rail_direction.back
+        }
     }
-    path_request.from_back = {
-        rail = rail,
-        direction = defines.rail_direction.back
-    }
-    local result = game.request_train_path(path_request)
+    local result = game.train_manager.request_train_path(path_request)
     local dist
     if not result.found_path then
         dist = -1
@@ -108,15 +110,17 @@ function pathing.device_distance(from_device, to_device)
         return -1
     end
     local direction = ptrainstop.connected_rail_direction
-    path_request.from_front = {
-        rail = connected_rail,
-        direction = direction
+    path_request.starts = {
+        {
+            rail = connected_rail,
+            direction = direction
+        },
+        {
+            rail = connected_rail,
+            direction = opposite(direction)
+        }
     }
-    path_request.from_back = {
-        rail = connected_rail,
-        direction = opposite(direction)
-    }
-    local result = game.request_train_path(path_request)
+    local result = game.train_manager.request_train_path(path_request)
     if not result.found_path then
         dist = -1
     else
@@ -140,7 +144,7 @@ function pathing.train_distance(train, to_device)
         steps_limit = steps_limit
     }
     path_request.train = train.train
-    local result = game.request_train_path(path_request)
+    local result = game.train_manager.request_train_path(path_request)
     if not result.found_path then
         return -1
     else
@@ -158,7 +162,7 @@ function pathing.train_trainstop_distance(train, trainstop)
         steps_limit = steps_limit
     }
     path_request.train = train.train
-    local result = game.request_train_path(path_request)
+    local result = game.train_manager.request_train_path(path_request)
     if not result.found_path then
         return -1
     else
@@ -228,15 +232,16 @@ function pathing.find_closest_exiting_trainstop(device)
 end
 
 local function clear_cache()
-    local surfaces_to_clear = global.surfaces_to_clear
+    if config.disabled then return end
+    local surfaces_to_clear = storage.surfaces_to_clear
     if surfaces_to_clear then
         for _, device in pairs(devices_runtime.map) do
             ---@cast device Device
-            if global.surfaces_to_clear[device.network.surface_index] then
+            if storage.surfaces_to_clear[device.network.surface_index] then
                 device.distance_cache = nil
             end
         end
-        global.surfaces_to_clear = nil
+        storage.surfaces_to_clear = nil
     end
 end
 
@@ -247,7 +252,7 @@ tools.on_load(on_load)
 
 tools.on_nth_tick(60, clear_cache)
 
-if  settings.startup["yaltn-use_direct_distance"].value then
+if settings.startup["yaltn-use_direct_distance"].value then
     return pathingd
 else
     return pathing

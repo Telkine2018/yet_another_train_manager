@@ -10,4 +10,6 @@ require("scripts.gui")
 require("scripts.blueprint")
 require("scripts.ui.frame")
 require("scripts.remote")
+require("scripts.dump")
+require("scripts.migrations")
 

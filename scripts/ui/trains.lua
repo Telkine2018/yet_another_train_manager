@@ -39,7 +39,6 @@ local function np(name) return uitrains_prefix .. name end
 local header_defs = {
 
     { name = "map",           width = 100,        nosort = true }, { name = "state", width = 100 },
-    { name = "network_mask",  width = 80 },
     { name = "composition",   width = 200 },
     { name = "route",         width = 140,        nosort = true },
     { name = "shipment",      width = 8 * 42 + 2, nosort = true },
@@ -98,16 +97,6 @@ local sort_methods = {
     ---@param t1 Train
     ---@param t2 Train
         function(t1, t2) return t2.state < t1.state end,
-
-    network_mask = --
-    ---@param t1 Train
-    ---@param t2 Train
-        function(t1, t2) return t1.network_mask < t2.network_mask end,
-
-    ["-network_mask"] = --
-    ---@param t1 Train
-    ---@param t2 Train
-        function(t1, t2) return t2.network_mask < t1.network_mask end,
 
     last_use_date = --
     ---@param t1 Train
@@ -196,14 +185,6 @@ function uitrains.update(player)
         fstate.style.width = header_defs[field_index].width
         field_index = field_index + 1
 
-        local fstate = row.add {
-            type = "label",
-            caption = tostring(train.network_mask)
-        }
-        fstate.style.horizontal_align = "center"
-        fstate.style.width = header_defs[field_index].width
-        field_index = field_index + 1
-
         local fcompo = uiutils.create_train_composition(row, train.rpattern)
         fcompo.style.width = header_defs[field_index].width
         fcompo.style.horizontal_align = "center"
@@ -215,8 +196,10 @@ function uitrains.update(player)
         local _, content_table = uiutils.create_product_table(row, np("shipment"), 8, 1)
         local products = {}
         local items = train.train.get_contents()
-        for name, count in pairs(items) do
-            products["item/" .. name] = count
+        for _, item in pairs(items) do
+            local signalid = tools.signal_to_id(item --[[@as SignalFilter]])
+            ---@cast signalid -nil
+            products[signalid] = item.count
         end
         local fluids = train.train.get_fluid_contents()
         for name, count in pairs(fluids) do
@@ -231,7 +214,7 @@ function uitrains.update(player)
         -- last used date
         local flast_use_date = row.add {
             type = "label",
-            caption = flib_format.time(GAMETICK - (train.last_use_date or 0))
+            caption = flib_format.time(game.tick - (train.last_use_date or 0))
         }
         flast_use_date.style.horizontal_align = "center"
         flast_use_date.style.width = header_defs[field_index].width

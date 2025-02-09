@@ -1,17 +1,16 @@
 {
   "name": "yet_another_train_manager",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "title": "Yet another train manager",
   "author": "Telkine2018",
   "contact": "",
   "homepage": "",
   "description": "A mod to manage a network of train and station.\n Some stations provide products (item or fluid) to the network, others stations request products.\n The mod allocate trains to carry product from provider to requester.\n This mod is highly inspired from the great mod LTN but with a completly different implementaton.",
-  "factorio_version": "1.1",
+  "factorio_version": "2.0",
   "dependencies": [
-		"base >= 1.1.101",
+		"base >= 2.0.0" ,
 		"flib >= 0.8.2",
-    "transfert_controller >= 1.0.0",
-    "(?) space-exploration >= 0.6.108",
+    "? transfert_controller >= 1.0.0",
     "? nullius"
 	]
 }

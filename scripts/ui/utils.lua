@@ -269,18 +269,19 @@ local order_cache = {}
 function uiutils.get_product_order(name)
     local order = order_cache[name]
     if not order then
-        local signal = tools.sprite_to_signal(name) --[[@as SignalID]]
+        local signal = tools.id_to_signal(name) 
+        ---@cast signal -nil
         local proto
         if signal.type == "item" then
-            proto = game.item_prototypes[signal.name]
+            proto = prototypes.item[signal.name]
             order = proto.group.order .. "  " .. proto.subgroup.order ..
                 "  " .. proto.order
         elseif signal.type == "fluid" then
-            proto = game.fluid_prototypes[signal.name]
+            proto = prototypes.fluid[signal.name]
             order = proto.group.order .. "  " .. proto.subgroup.order ..
                 "  " .. proto.order
         elseif signal.type == "virtual" then
-            proto = game.virtual_signal_prototypes[signal.name]
+            proto = prototypes.virtual_signal[signal.name]
             order = proto.subgroup.order .. "  " .. proto.order
         else
             order = ""
@@ -314,31 +315,38 @@ function uiutils.display_products(container, sorted_products, style, tooltip, ha
     if not handler_name then handler_name = np("product_button") end
     for _, sorted_product in ipairs(sorted_products) do
         local name, count = sorted_product.name, sorted_product.count
-        local signalid = tools.sprite_to_signal(name)
+        local signal = tools.id_to_signal(name)
         local proto
-        ---@cast signalid -nil
+        ---@cast signal -nil
 
-        local sprite_name = name
-        if signalid.type == "item" then
-            proto = game.item_prototypes[signalid.name]
-        elseif signalid.type == "fluid" then
-            proto = game.fluid_prototypes[signalid.name]
-        elseif signalid.type == "virtual" then
-            proto = game.virtual_signal_prototypes[signalid.name]
-            sprite_name = "virtual-signal/" .. signalid.name
+        local sprite_name
+        if signal.type == "item" then
+            proto = prototypes.item[signal.name]
+        elseif signal.type == "fluid" then
+            proto = prototypes.fluid[signal.name]
+        elseif signal.type == "virtual" then
+            proto = prototypes.virtual_signal[signal.name]
         else
             goto skip
         end
+        sprite_name = tools.signal_to_sprite(signal)
         local formatted = luautil.format_number(count, true)
         if not tooltip then
             tooltip = np("tooltip-item")
         end
+        local quality_sprite = ""
+        if signal.quality and signal.quality ~= "normal" then
+            quality_sprite = "[quality=" .. signal.quality .. "]"
+        end
         local button = container.add {
-            type = "sprite-button",
-            sprite = sprite_name,
+            type = "choose-elem-button",
             style = style,
-            tooltip = { tooltip, formatted, "[img=" .. sprite_name .. "]", { "", "[color=cyan]", proto.localised_name, "[/color]" } }
+            elem_type = "signal",
+            tooltip = { tooltip, formatted, "[img=" .. sprite_name .. "]" .. quality_sprite, { "", "[color=cyan]", proto.localised_name, "[/color]" } }
         }
+        button.locked = true
+        button.elem_value = signal
+
         tools.set_name_handler(button, handler_name, handler_tags)
         local label = button.add {
             type = "label",
@@ -502,24 +510,11 @@ function uiutils.zoom_to(player, entity, follow)
                 freeze_history = true,
                 location_name = ""
             })
-            if follow and follow.surface_index == entity.surface_index then
-                player.zoom_to_world(entity.position, 0.5, follow)
-            end
             return
         end
     end
 
-    if entity.surface_index == player.surface_index then
-        player.close_map()
-        if follow and follow.surface_index ~= player.surface_index then
-            follow = nil
-        end
-        if follow then
-            player.zoom_to_world(entity.position, 0.5, follow)
-        else
-            player.zoom_to_world(entity.position, 0.5)
-        end
-    end
+    player.set_controller{type=defines.controllers.remote, position=entity.position, surface=entity.surface}
 end
 
 uiutils.np = np
@@ -609,17 +604,17 @@ end
 ---@param color string
 ---@return LuaGuiElement
 function uiutils.create_product_button(row, name, amount, color)
-    local signalid = tools.sprite_to_signal(name)
+    local signalid = tools.id_to_signal(name)
     local proto
     ---@cast signalid -nil
 
     local sprite_name = name
     if signalid.type == "item" then
-        proto = game.item_prototypes[signalid.name]
+        proto = prototypes.item[signalid.name]
     elseif signalid.type == "fluid" then
-        proto = game.fluid_prototypes[signalid.name]
+        proto = prototypes.fluid[signalid.name]
     elseif signalid.type == "virtual" then
-        proto = game.virtual_signal_prototypes[signalid.name]
+        proto = prototypes.virtual_signal[signalid.name]
         sprite_name = "virtual-signal/" .. signalid.name
     end
 
@@ -648,8 +643,7 @@ end
 ---@param player LuaPlayer
 ---@return boolean
 function uiutils.can_teleport(player)
-    return game.active_mods["Teleporters"] and
-        player.force.technologies["teleporter"].enabled
+    return script.active_mods["Teleporters"] and player.force.technologies["teleporter"].enabled
 end
 
 ---@param player LuaPlayer
@@ -731,6 +725,7 @@ tools.on_named_event(np("train"), defines.events.on_gui_click, --
         local train = context.trains[id]
         if train and train.train.valid then
             local front_stock = train.train.front_stock
+            if not front_stock then return end
 
             rendering.draw_circle {
                 surface = front_stock.surface,

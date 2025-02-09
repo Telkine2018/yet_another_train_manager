@@ -7,6 +7,7 @@ local yutils = require("scripts.yutils")
 local allocator = require("scripts.allocator")
 local trainconf = require("scripts.trainconf")
 local Pathing = require("scripts.pathing")
+local config = require("scripts.config")
 
 local device_selection = {}
 
@@ -118,13 +119,13 @@ local function show_selected(player, entity)
     local vars = tools.get_vars(player)
 
     if vars.selected_device_area_id then
-        rendering.destroy(vars.selected_device_area_id)
+        vars.selected_device_area_id.destroy()
         vars.selected_device_area_id = nil
     end
 
     if vars.selected_device_text_ids then
         for _, id in pairs(vars.selected_device_text_ids) do
-            rendering.destroy(id)
+            id.destroy()
         end
         vars.selected_device_text_ids = nil
     end
@@ -144,15 +145,19 @@ local function show_selected(player, entity)
     vars.selected_device_id = entity.unit_number
     if not device then return end
 
-    if not device.trainstop or not device.trainstop.valid then
+    if not device.trainstop or not device.trainstop.valid or device.dconfig.role == 0 then
         local area = yutils.get_device_area(device, true)
         vars.selected_device_area_id = rendering.draw_rectangle {
             draw_on_ground = true,
             width = 2,
-            left_top = entity,
-            left_top_offset = area[1],
-            right_bottom = entity,
-            right_bottom_offset = area[2],
+            left_top = {
+                entity = entity,
+                offset = area[1]
+            },
+            right_bottom = {
+                entity = entity,
+                offset = area[2]
+            },
             surface = entity.surface,
             color = area_color,
             only_in_alt_mode = true
@@ -182,10 +187,12 @@ local function show_selected(player, entity)
 
         local function draw_text(text)
             local renderid = rendering.draw_text {
-                target = device.entity,
+                target = {
+                    entity = device.entity,
+                    offset = { 0, y }
+                },
                 use_rich_text = true,
                 only_in_alt_mode = true,
-                target_offset = { 0, y },
                 surface = device.entity.surface,
                 text = text,
                 alignment = "center",
@@ -211,10 +218,13 @@ local function show_selected(player, entity)
                         else
                             text = { "yaltn-messages.tooltip_delivery_from" }
                         end
-                        local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
+                        local signalId = tools.id_to_signal(name)
+                        ---@cast signalId -nil
                         table.insert(text, comma_value(amount))
-                        table.insert(text, "[" .. signalId.type .. "=" ..
-                            signalId.name .. "]")
+                        --table.insert(text, "[" .. signalId.type .. "=" .. signalId.name .. "]")
+                        
+                        
+                        table.insert(text, yutils.signal_name(signalId))
                         if delivery.provider == device then
                             table.insert(text, trainstop_to_text(delivery.requester))
                         else
@@ -252,8 +262,9 @@ local function show_selected(player, entity)
                     fduration.style = "yatm_camera_label"
 
                     local schedule = d.train.train.schedule
-                    local current = schedule.current
+                    ---@cast schedule -nil
                     local records = schedule.records
+                    local current = schedule.current
                     local station
                     for index = current, #records do
                         station = records[index].station
@@ -267,11 +278,17 @@ local function show_selected(player, entity)
                     end
                     local train = d.train.train
                     local contents = train.get_contents()
-                    for item, count in pairs(contents) do
+                    for _, item in pairs(contents) do
                         local content_table = {}
+                        local name = item.name
+                        local count = item.count
                         table.insert(content_table, flib_format.number(count))
                         table.insert(content_table, "x")
-                        table.insert(content_table, "[item=" .. item .. "]")
+                        table.insert(content_table, "[item=" .. name .. "]")
+                        if item.quality and item.quality ~= "normal" then
+                            table.insert(content_table, "[quality=" .. item.quality .."]")
+                        end
+                        -- table.insert(content_table, { "item-name." .. name })
                         local caption = table.concat(content_table, " ")
                         local fcontent = label_flow.add { type = "label", caption = caption }
                         fcontent.style = "yatm_camera_label"
@@ -284,6 +301,7 @@ local function show_selected(player, entity)
                         table.insert(content_table, flib_format.number(count))
                         table.insert(content_table, "x")
                         table.insert(content_table, "[fluid=" .. fluid .. "]")
+                        -- table.insert(content_table, { "fluid-name=" .. fluid })
                         local caption = table.concat(content_table, " ")
                         local fcontent = label_flow.add { type = "label", caption = caption }
                         fcontent.style = "yatm_camera_label"
@@ -298,15 +316,16 @@ local function show_selected(player, entity)
             for name, request in pairs(device.requested_items) do
                 local amount = request.requested - request.provided
                 if amount >= request.threshold then
+                    local signalId = tools.id_to_signal(name)
+                    ---@cast signalId -nil
+
                     local text = { "yaltn-messages.tooltip_requested_item" }
-                    local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
                     table.insert(text, comma_value(amount))
-                    table.insert(text, "[" .. signalId.type .. "=" ..
-                        signalId.name .. "]")
+                    table.insert(text, yutils.signal_name(signalId))
                     if request.failcode then
                         table.insert(text, { "", " (", { "yaltn-error.m" .. request.failcode }, ")" })
                     else
-                        table.insert(text, "")
+                        table.insert(text, "  ")
                     end
                     draw_text(text)
                     if text_line > max_line then break end
@@ -319,10 +338,11 @@ local function show_selected(player, entity)
             for name, request in pairs(device.produced_items) do
                 local amount = request.provided - request.requested
                 local text = { "yaltn-messages.tooltip_provide_item" }
-                local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
+                local signalId = tools.id_to_signal(name)
+                ---@cast signalId -nil
                 table.insert(text, comma_value(amount))
-                table.insert(text,
-                    "[" .. signalId.type .. "=" .. signalId.name .. "]")
+                -- table.insert(text, "[" .. signalId.type .. "=" .. signalId.name .. "]")
+                table.insert(text, yutils.signal_name(signalId))
                 draw_text(text)
                 if text_line > max_line then break end
             end
@@ -381,7 +401,7 @@ local function show_selected(player, entity)
                 for pattern in pairs(device.patterns) do
                     local markers = yutils.create_layout_strings(pattern)
                     local text = table.concat(markers)
-                    draw_text { "", text }
+                    draw_text(text)
                 end
             end
         end
@@ -404,6 +424,7 @@ local function on_selected_entity_changed(e)
 end
 
 local function scan_players()
+    if config.disabled then return end
     for _, player in pairs(game.players) do
         show_selected(player, player.selected)
     end

@@ -26,6 +26,8 @@ local buffer_feeder_roles = defs.buffer_feeder_roles
 local find_train = allocator.find_train
 local band = bit32.band
 
+local debug = tools.debug
+
 
 local find_closest_incoming_rail = Pathing.find_closest_incoming_rail
 local device_distance = Pathing.device_distance
@@ -242,38 +244,54 @@ local function find_provider(request, forbidden, no_surface_change)
     if no_surface_change then
         return nil
     end
+
     network = network.connected_network
-    if not network then
-        return nil
-    end
-
-    productions = network.productions[request.name]
-    if not productions or not next(productions) then
-        return
-    end
-
-    local index = find_closest_incoming_rail(device)
-    if not index then
-        return nil
-    end
-
-    local trainstop = network.connecting_trainstops[index]
-    if not trainstop then
-        return nil
-    end
-    for _, production in pairs(productions) do
-        local production_device = production.device
-        local dist
-        if production_device.distance_cache then
-            dist = production_device.distance_cache[trainstop.unit_number]
+    if network then
+        productions = network.productions[request.name]
+        if not productions or not next(productions) then
+            return
         end
-        if not dist then
-            dist = Pathing.device_trainstop_distance(production_device, trainstop)
+
+        local index = find_closest_incoming_rail(device)
+        if not index then
+            return nil
         end
-        if dist > 0 then
-            check_production(production, dist)
+
+        local trainstop = network.connecting_trainstops[index]
+        if not trainstop then
+            return nil
+        end
+        for _, production in pairs(productions) do
+            local production_device = production.device
+            local dist
+            if production_device.distance_cache then
+                dist = production_device.distance_cache[trainstop.unit_number]
+            end
+            if not dist then
+                dist = Pathing.device_trainstop_distance(production_device, trainstop)
+            end
+            if dist > 0 then
+                check_production(production, dist)
+            end
         end
     end
+
+    network = device.network
+    if device.teleporter_in_range and not device.teleporter_in_range.inactive then
+        local context = yutils.get_context()
+        for _, candidate_network in pairs(context.networks[network.force_index]) do
+            if candidate_network ~= network then
+                local productions = candidate_network.productions[request.name]
+
+                for _, production in pairs(productions) do
+                    if production.device.teleporter_in_range and not production.device.teleporter_in_range.inactive then
+                        check_production(production, 0)
+                    end
+                end
+            end
+        end
+    end
+
     return candidate
 end
 
@@ -286,27 +304,28 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
     local requester = delivery.requester
     local train = delivery.train
 
-    ---@type TrainScheduleRecord[][]
+    ---@type ScheduleRecord[][]
     local splitted_schedule = {}
 
-    ---@type TrainScheduleRecord[]
+    ---@type ScheduleRecord[]
     local records = {}
-    local teleport_pos = train.front_stock.position
+    local train_pos = train.front_stock.position
 
     -- goto provider
     if not buffer_feeder_roles[delivery.provider.role] then
         local load_condition = {}
         for name, count in pairs(delivery.content) do
-            local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
+            local signal = tools.id_to_signal(name)
+            ---@cast signal -nil
             if existing_content then
                 count = count + (existing_content[name] or 0)
             end
             table.insert(load_condition, {
-                type = signalId.type .. "_count",
+                type = signal.type .. "_count",
                 compare_type = "and",
                 condition = {
                     comparator = ">=",
-                    first_signal = signalId,
+                    first_signal = signal,
                     constant = count
                 }
             })
@@ -325,7 +344,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             if front_stock.surface_index ~= provider.network.surface_index then
                 local from_network = yutils.get_network_base(front_stock.force_index, front_stock.surface_index)
                 local station = multisurf.add_cross_network_trainstop(from_network, front_stock.position, records)
-                if station then teleport_pos = station.position end
+                if station then train_pos = station.position end
                 table.insert(records, {
                     station = provider.trainstop.backer_name,
                     wait_conditions = load_condition
@@ -333,14 +352,23 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
                 table.insert(splitted_schedule, records)
                 records = {}
             end
+            teleport.add_teleporter(provider.network, train_pos, provider.position, records)
+        else
+            if train.front_stock.surface_index ~= provider.network.surface_index then
+                local src_network = yutils.get_context().networks[train.front_stock.force_index][train.front_stock.surface_index]
+                
+                table.insert(splitted_schedule, records)
+                records = teleport.add_teleporter(src_network, train_pos, provider.position, records, provider.network)
+            else
+                teleport.add_teleporter(provider.network, train_pos, provider.position, records)
+            end
         end
-
-        teleport.add_teleporter(provider.network, teleport_pos, provider.position, records)
 
         local backer_name = provider.trainstop.backer_name
         local needed
         if config.allow_trainstop_name_routing then
-            local station_list = provider.trainstop.surface.get_train_stops { name = backer_name, force = provider.trainstop.force }
+            local station_list = game.train_manager.get_train_stops {
+                surface = provider.trainstop.surface, station_name = backer_name, force = provider.trainstop.force }
             needed = #station_list > 1
         else
             needed = true
@@ -359,7 +387,7 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
             station = backer_name,
             wait_conditions = load_condition
         })
-        teleport_pos = provider.position
+        train_pos = provider.position
 
         if requester.role == buffer_role then
             table.insert(records, {
@@ -379,10 +407,9 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
         if (provider.network.surface_index ~= requester.network.surface_index) then
             local front_stock = delivery.train.front_stock
 
-            local index = #records + 1
             local station = multisurf.add_cross_network_trainstop(
                 provider.network, front_stock.position, records)
-            if station then teleport_pos = station.position end
+            if station then train_pos = station.position end
             table.insert(records, {
                 station = delivery.requester.trainstop.backer_name,
                 wait_conditions = { { type = "empty", compare_type = "and" } }
@@ -393,14 +420,22 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
     end
 
     if delivery.requester.role ~= buffer_role then
-        teleport.add_teleporter(requester.network, teleport_pos,
-            requester.position, records)
 
+        if not provider or requester.network == provider.network then
+            teleport.add_teleporter(requester.network, train_pos, requester.position, records)
+        else
+            table.insert(splitted_schedule, records)
+            records = teleport.add_teleporter(provider.network, train_pos, requester.position, records, requester.network)
+            ---@cast records -nil
+        end
 
         local backer_name = requester.trainstop.backer_name
         local needed
         if config.allow_trainstop_name_routing then
-            local station_list = requester.trainstop.surface.get_train_stops { name = backer_name, force = requester.trainstop.force }
+            local station_list = game.train_manager.get_train_stops {
+                surface = requester.trainstop.surface,
+                station_name = backer_name,
+                force = requester.trainstop.force }
             needed = #station_list > 1
         else
             needed = true
@@ -442,7 +477,8 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
         if buffer_feeder_roles[provider.role] then
             local unload_conditions = records[#records].wait_conditions
             for name, count in pairs(delivery.content) do
-                local signalId = tools.sprite_to_signal(name) --[[@as SignalID]]
+                local signal = tools.id_to_signal(name)
+                ---@cast signal -nil
                 if existing_content then
                     count = (existing_content[name] or 0) - count
                 end
@@ -451,18 +487,18 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
                 if count > 0 then
                     condition = {
                         comparator = "<=",
-                        first_signal = signalId,
+                        first_signal = signal,
                         constant = count
                     }
                 else
                     condition = {
                         comparator = "=",
-                        first_signal = signalId,
+                        first_signal = signal,
                         constant = 0
                     }
                 end
                 table.insert(unload_conditions, {
-                    type = signalId.type .. "_count",
+                    type = signal.type .. "_count",
                     compare_type = "and",
                     condition = condition
                 })
@@ -513,6 +549,8 @@ function scheduler.create_delivery_schedule(delivery, existing_content)
     end
 
     local schedule = { current = 1, records = records }
+
+    -- schedule = { current = 1, records = { { station = "Temp", wait_conditions = { { type = "empty", compare_type = "and" } } } } }
     train.train.schedule = schedule
 end
 
@@ -522,7 +560,8 @@ end
 ---@return table<string, integer>
 function scheduler.create_payload(request, candidate, train, available_slots)
     local content = {}
-    local signalID = tools.sprite_to_signal(request.name) --[[@as SignalID]]
+    local signal = tools.id_to_signal(request.name)
+    ---@cast signal -nil
 
     local available_amount = candidate.provided - candidate.requested
     local amount
@@ -534,8 +573,8 @@ function scheduler.create_payload(request, candidate, train, available_slots)
     local capacity
     local fluid_capacity = train.fluid_capacity
 
-    if signalID.type == "item" then
-        local stack_size = game.item_prototypes[signalID.name].stack_size
+    if signal.type == "item" then
+        local stack_size = prototypes.item[signal.name].stack_size
         local locked_slots = 0
         if train.cargo_count > 0 then
             locked_slots = (candidate.device.locked_slots or 0) * train.cargo_count
@@ -567,7 +606,8 @@ function scheduler.create_payload(request, candidate, train, available_slots)
             if other_name ~= request.name then
                 local other_candidate = candidate.device.produced_items[other_name]
                 if other_candidate then
-                    local other_signalID = tools.sprite_to_signal(other_name) --[[@as SignalID]]
+                    local other_signal = tools.id_to_signal(other_name)
+                    ---@cast other_signal -nil
 
                     available_amount = other_candidate.provided - other_candidate.requested
                     amount = other_request.requested - other_request.provided
@@ -576,8 +616,8 @@ function scheduler.create_payload(request, candidate, train, available_slots)
                     end
 
                     local train_size
-                    if other_signalID.type == "item" then
-                        local stack_size = game.item_prototypes[other_signalID.name].stack_size
+                    if other_signal.type == "item" then
+                        local stack_size = prototypes.item[other_signal.name].stack_size
                         train_size = available_slots * stack_size
                         if available_slots <= 0 then
                             goto next_r
@@ -622,16 +662,20 @@ local create_payload = scheduler.create_payload
 ---@param existing_content table<string, integer>
 ---@return Delivery
 local function create_delivery(request, candidate, train, content, existing_content)
+    if tools.tracing then
+        debug("create_delivery:" .. request.name .. "=" .. request.requested)
+    end
     local device = request.device
     local context = get_context()
     local delivery_id = context.delivery_id
+    local gametick = game.tick
     ---@type Delivery
     local delivery = {
         content = content,
         provider = candidate.device,
         requester = request.device,
         train = train,
-        start_tick = GAMETICK,
+        start_tick = gametick,
         id = delivery_id,
         combined_delivery = train.delivery
     }
@@ -641,24 +685,19 @@ local function create_delivery(request, candidate, train, content, existing_cont
     logger.report_delivery_creation(delivery)
 
     train.timeout_delay = (device.delivery_timeout or config.delivery_timeout) * 60
-    train.timeout_tick = GAMETICK + train.timeout_delay
+    train.timeout_tick = gametick + train.timeout_delay
     train.timeout_pos = train.front_stock.position
     train.active_reported = nil
     request.device.deliveries[train.id] = delivery
-    request.create_tick = GAMETICK
+    request.create_tick = gametick
     candidate.device.deliveries[train.id] = delivery
     train.delivery = delivery
     train.last_delivery = delivery
 
     train.state = defs.train_states.to_producer
     local candidate_device = candidate.device
-    if candidate_device.role == defs.device_roles.feeder
-        and train.train.station == candidate_device.trainstop
-        and candidate_device.inactivity_delay then
-        scheduler.schedule_feeder_waiting_loading(train, candidate_device)
-    else
-        scheduler.create_delivery_schedule(delivery, existing_content)
-    end
+    candidate_device.inactivity_delay = nil
+    scheduler.create_delivery_schedule(delivery, existing_content)
 
     if device.network.reservations then
         device.network.reservations[request.name] = nil
@@ -667,6 +706,7 @@ local function create_delivery(request, candidate, train, content, existing_cont
     local station = train.depot
     if not train.train.has_path and station then
         local schedule = train.train.schedule
+        ---@cast schedule -nil
         table.insert(schedule.records, 1, {
             rail = station.trainstop.connected_rail,
             temporary = true,
@@ -704,39 +744,14 @@ local function create_delivery(request, candidate, train, content, existing_cont
 end
 scheduler.create_delivery = create_delivery
 
----@param train Train
----@param provider Device
-function scheduler.schedule_feeder_waiting_loading(train, provider)
-    local records = {}
-    local conditions = {
-        { type = "inactivity", compare_type = "or", ticks = provider.inactivity_delay * 60 }
-    }
-    if (provider.max_load_time and provider.max_load_time > 0) then
-        table.insert(conditions, { type = "time", compare_type = "or", ticks = provider.max_load_time * 60 })
-    end
-    table.insert(records, {
-        rail = provider.trainstop.connected_rail,
-        temporary = true,
-        rail_direction = provider.trainstop.connected_rail_direction,
-        wait_conditions = conditions
-    })
-
-    table.insert(records, {
-        rail = provider.trainstop.connected_rail,
-        temporary = true,
-        rail_direction = provider.trainstop.connected_rail_direction,
-        wait_conditions = { { type = "time", compare_type = "and", ticks = 1 } }
-    })
-
-    local schedule = { current = 1, records = records }
-    train.train.schedule = schedule
-    train.state = defs.train_states.feeder_loading
-end
-
 ---@param request Request
 function scheduler.process_request(request)
     local device = request.device
     local context = get_context()
+
+    if tools.tracing then
+        tools.debug("scheduler.process_request: " .. request.name .. "=" .. request.requested)
+    end
 
     request.inqueue = false
     request.failcode = nil
@@ -777,10 +792,6 @@ function scheduler.process_request(request)
     local requested = request.requested - request.provided
     if requested < request.threshold then return end
 
-    if request.device.trainstop.backer_name == "Aluminium plate 1 [item=aluminium-plate] >>" then
-        log("");
-    end
-
     local candidate = find_provider(request)
     if not candidate then
         if device.reservation then
@@ -813,7 +824,7 @@ function scheduler.process_request(request)
     if not buffer_feeder_roles[device.role] and not buffer_feeder_roles[candidate_device.role] then
         local patterns = trainconf.intersect_patterns(device.patterns, candidate_device.patterns)
         candidate_device.failcode = nil
-        train = find_train(candidate_device, device.network_mask, patterns, is_item)
+        train = find_train(candidate_device, patterns, is_item)
         if not train then
             if not request.train_notfound_logged then
                 logger.report_train_notfound(request)
@@ -838,11 +849,12 @@ function scheduler.process_request(request)
             return
         end
         existing_content = {}
-        for name, count in pairs(ttrain.get_contents()) do
-            local sname = "item/" .. name
-            existing_content[sname] = count
-            local produced = device.produced_items[sname]
-            if produced then produced.provided = count end
+        for _, item in pairs(ttrain.get_contents()) do
+            local signalid = tools.signal_to_id(item)
+            ---@cast signalid -nil
+            existing_content[signalid] = item.count
+            local produced = device.produced_items[signalid]
+            if produced then produced.provided = item.count end
         end
         for name, count in pairs(ttrain.get_fluid_contents()) do
             local sname = "fluid/" .. name
@@ -853,7 +865,7 @@ function scheduler.process_request(request)
     elseif device.role == buffer_role then
         train = device.train
         if not train then
-            train = find_train(candidate_device, device.network_mask, device.patterns, is_item)
+            train = find_train(candidate_device, device.patterns, is_item)
             if not train then
                 request.failcode = 60
                 return
@@ -869,11 +881,14 @@ function scheduler.process_request(request)
             return
         end
         existing_content = {}
-        for name, count in pairs(ttrain.get_contents()) do
-            reserved_slot = reserved_slot + math.ceil(count / game.item_prototypes[name].stack_size)
-            local sname = "item/" .. name
-            existing_content[sname] = count
-            local produced = device.produced_items[sname]
+        for _, item in pairs(ttrain.get_contents()) do
+            local signalid = tools.signal_to_id(item)
+            ---@cast signalid -nil
+            local name = item.name
+            local count = item.count
+            reserved_slot = reserved_slot + math.ceil(count / prototypes.item[name].stack_size)
+            existing_content[signalid] = count
+            local produced = device.produced_items[signalid]
             if produced then produced.provided = count end
         end
         for name, count in pairs(ttrain.get_fluid_contents()) do
@@ -924,11 +939,14 @@ function scheduler.process_request(request)
     end
 
     create_delivery(request, candidate, train, content, existing_content)
+
+    if tools.tracing then
+        debug("create_delivery: request=" .. request.name .. ",count=" .. request.requested)
+    end
 end
 
 ---@param data NthTickEventData
 function scheduler.process(data)
-    GAMETICK = data.tick
     local context = get_context()
     if config.disabled then return end
 
@@ -946,7 +964,10 @@ function scheduler.process(data)
 
         context.request_per_iteration = #context.running_requests / 12
         context.request_iter = 0
-        context.session_tick = GAMETICK
+        context.session_tick = game.tick
+        if tools.tracing then
+            tools.debug("scheduler.process: (context.running_requests)")
+        end
     end
 
     context.request_iter = context.request_iter + context.request_per_iteration

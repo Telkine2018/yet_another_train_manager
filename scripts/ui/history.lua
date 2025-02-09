@@ -30,7 +30,6 @@ local header_defs = {
     { name = "id",           width = 50 }, { name = "start", width = 80 },
     { name = "trainid",      width = 60 },
     { name = "routing",      width = 300,        nosort = true },
-    { name = "network_mask", width = 80 },
     { name = "shipment",     width = 6 * 40 + 8, nosort = true },
     { name = "duration",     width = 100 }
 }
@@ -117,18 +116,6 @@ local sort_methods = {
     ---@return boolean
         function(d1, d2) return d2.train.id < d1.train.id end,
 
-    network_mask = --
-    ---@param d1 Delivery
-    ---@param d2 Delivery
-    ---@return boolean
-        function(d1, d2) return d1.train.network_mask < d2.train.network_mask end,
-
-    ["-network_mask"] = --
-    ---@param d1 Delivery
-    ---@param d2 Delivery
-    ---@return boolean
-        function(d1, d2) return d2.train.network_mask < d1.train.network_mask end,
-
     duration = --
     ---@param d1 Delivery
     ---@param d2 Delivery
@@ -203,9 +190,6 @@ function uihistory.update(player)
         uiutils.create_delivery_routing_horizontal(row, delivery, header_defs[field_index].width)
         field_index = field_index + 1
 
-        uiutils.create_textfield(row, tostring(delivery.train.network_mask), header_defs[field_index].width)
-        field_index = field_index + 1
-
         local _, content_table = uiutils.create_product_table(row, np("shipment"), 6, 1)
         local sorted_products
         if not delivery.combined_delivery then
@@ -225,7 +209,7 @@ function uihistory.update(player)
         field_index = field_index + 1
 
         local ftime = uiutils.create_textfield(row,
-            delivery.end_tick and flib_format.time(delivery.end_tick - delivery.start_tick) or "*",
+            (delivery.start_tick and delivery.end_tick and flib_format.time(delivery.end_tick - delivery.start_tick)) or "*",
             header_defs[field_index].width)
         ftime.raise_hover_events = true
         tools.set_name_handler(ftime, np("time"), { id = delivery.id })
@@ -274,8 +258,9 @@ tools.on_named_event(np("time"), defines.events.on_gui_hover, --
                 ---@cast delivery -nil
 
                 if delivery.end_tick then
-                    local start_tick = delivery.start_tick or GAMETICK
-                    local end_tick = delivery.end_tick or GAMETICK
+                    local gametick = game.tick
+                    local start_tick = delivery.start_tick or gametick
+                    local end_tick = delivery.end_tick or gametick
                     local start_load_tick = delivery.start_load_tick or start_tick
                     local end_load_tick = delivery.end_load_tick or start_load_tick
                     local start_unload_tick = delivery.start_unload_tick or end_load_tick

@@ -43,7 +43,7 @@ local function add_cell(line, with_back, count, type, is_back, generic)
             entity = type
         }
         tools.set_name_handler(fstock, np("rstock"))
-        show_sens = type and game.entity_prototypes[type].type == "locomotive"
+        show_sens = type and prototypes.entity[type].type == "locomotive"
     end
 
     fstock.style.left_margin = 20
@@ -63,14 +63,13 @@ local function add_cell(line, with_back, count, type, is_back, generic)
             type = "sprite-button",
             name = "sens",
             sprite = is_back and commons.revert_sprite or commons.direct_sprite,
-            tooltip = { np("sens-tooltip")}
+            tooltip = { np("sens-tooltip") }
         }
         fsens.style.size = wfield
         tools.set_name_handler(fsens, np("sens"))
         if not show_sens then
             fsens.visible = false
         end
-
     end
 end
 
@@ -80,7 +79,7 @@ end
 ---@param generic boolean
 ---@param same_width boolean
 function layout_editor.add_line(line, elements, with_back, generic, same_width)
-    line.tags = { generic = generic, same_width=same_width }
+    line.tags = { generic = generic, same_width = same_width }
     line.clear()
 
     for _, element in pairs(elements) do
@@ -118,8 +117,10 @@ local function on_gstock_click(e)
             end
             e.element.sprite = stock_options[found].sprite
             local cell = e.element.parent
+            ---@cast cell -nil
             cell.qty.enabled = true
             local line = cell.parent
+            ---@cast line -nil
             local index = tools.index_of(line.children, cell)
             if #line.children == index then
                 add_cell(line, false, nil, nil, nil, true)
@@ -127,7 +128,9 @@ local function on_gstock_click(e)
         end
     elseif e.button == 4 then
         local cell = e.element.parent
+        ---@cast cell -nil
         local line = cell.parent
+        ---@cast line -nil
         local index = tools.index_of(line.children, cell)
         if #line.children ~= index then
             cell.destroy()
@@ -160,7 +163,9 @@ tools.on_named_event(np("sens"), defines.events.on_gui_click, on_sens_click)
 local function on_rstock_element_changed(e)
     local type = e.element.elem_value
     local cell = e.element.parent
+    ---@cast cell -nil
     local line = cell.parent
+    ---@cast line -nil
     if type then
         cell.qty.enabled = true
         cell.qty.focus()
@@ -178,8 +183,8 @@ local function on_rstock_element_changed(e)
         end
     end
     if cell.valid then
-        local type = e.element.elem_value
-        cell.sens.visible  = type and game.entity_prototypes[type].type == "locomotive"
+        local type        = e.element.elem_value
+        cell.sens.visible = type and prototypes.entity[type].type == "locomotive"
     end
 end
 tools.on_named_event(np("rstock"), defines.events.on_gui_elem_changed, on_rstock_element_changed)
@@ -217,7 +222,9 @@ tools.on_named_event(np("delete_layout"), defines.events.on_gui_click,
     ---@param e EventData.on_gui_click
     function(e)
         local line = e.element.parent
-        line.destroy()
+        if line then
+            line.destroy()
+        end
     end)
 
 ---@param container LuaGuiElement
@@ -269,7 +276,7 @@ function layout_editor.create_frame(player, patterns)
         name = np("close"),
         style = "frame_action_button",
         mouse_button_filter = { "left" },
-        sprite = "utility/close_white",
+        sprite = "utility/close",
         hovered_sprite = "utility/close_black"
     }
 
@@ -324,7 +331,6 @@ end
 ---@param cells LuaGuiElement
 ---@return TrainConfElement[]
 function layout_editor.read_cells(cells)
-
     ---@type TrainConfElement[]
     local elements = {}
     for _, cell in pairs(cells.children) do

@@ -156,7 +156,7 @@ function uievents.update(player)
         -------- Time
         local ftime = row.add {
             type = "label",
-            caption = flib_format.time(GAMETICK - event.time)
+            caption = flib_format.time(game.tick - event.time)
         }
         ftime.style.horizontal_align = "center"
         ftime.style.width = header_defs[field_index].width

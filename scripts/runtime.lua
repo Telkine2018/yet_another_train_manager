@@ -1,4 +1,3 @@
-
 local commons = require("scripts.commons")
 local tools = require("scripts.tools")
 
@@ -8,17 +7,24 @@ local tools = require("scripts.tools")
 ---@field refresh_rate integer              @ execution count for a refresh
 ---@field ntick integer                     @ delay between execution
 ---@field global_name string
+---@field rt_name string
 ---@field process fun(e : EntityWithId)
 ---@field max_per_run integer?
 
 ---@class EntityWithIdAndProcess : EntityWithId
 ---@field process  fun(e:EntityWithId)?
 
----@class Runtime 
+---@class RuntimeGlobal
+---@field currentid integer
+---@field refresh_index number
+---@field boost boolean?
+
+---@class Runtime
 ---@field config RuntimeConfig
 ---@field map table<int, EntityWithIdAndProcess>
----@field currentid integer
----@field boost boolean
+---@field gdata RuntimeGlobal
+---@field disabled boolean?
+
 local Runtime = {}
 
 --- @type table<string, RuntimeConfig>
@@ -27,7 +33,9 @@ local configs = {}
 --- @type table<string, Runtime>
 local runtimes = {}
 
-local mt = {__index = Runtime}
+local debug = tools.debug
+
+local mt = { __index = Runtime }
 
 ---@param config RuntimeConfig
 function Runtime.register(config)
@@ -36,13 +44,19 @@ function Runtime.register(config)
     if not config.refresh_rate then config.refresh_rate = 1 end
     if not config.ntick then config.ntick = 10 end
     if not config.global_name then config.global_name = config.name end
+    if not config.rt_name then config.rt_name = config.global_name .. "_data" end
 
     ---@type EntityMap<EntityWithId>
     tools.on_init(
-        function() 
-            if not global[config.global_name] then
-                global[config.global_name] = {} --[[@as EntityMap<EntityWithId>]] 
+        function()
+            if not storage[config.global_name] then
+                storage[config.global_name] = {} --[[@as EntityMap<EntityWithId>]]
             end
+            if not storage[config.rt_name] then
+                storage[config.rt_name] = { refresh_index = 0 }
+            end
+            local rt = Runtime.get(config.name)
+            Runtime.init_data(rt)
         end)
 end
 
@@ -55,7 +69,6 @@ function Runtime.get_existing(name) return runtimes[name] end
 -- Call by on_load
 ---@param name string
 function Runtime.get(name)
-
     ---@type Runtime
     local rt = runtimes[name]
     if rt then return rt end
@@ -72,14 +85,12 @@ function Runtime.get(name)
 
     setmetatable(rt, mt)
 
-    local refresh_index = 0
-    local map = global[config.global_name] --[[@as EntityMap<EntityWithIdAndProcess>]]
-    if not map then -- only on init
-        map = {}
-        global[config.global_name] = map
-        rt.map = map
-    end
+    local map = storage[config.global_name] --[[@as EntityMap<EntityWithIdAndProcess>]]
     rt.map = map
+
+    ---@type RuntimeGlobal
+    local gdata = storage[config.rt_name]
+    rt.gdata = gdata
 
     local max_per_run = max_per_tick
     if config.ntick > 0 then max_per_run = max_per_tick * config.ntick end
@@ -88,32 +99,30 @@ function Runtime.get(name)
     ---@cast max_per_run integer
 
     local function boost()
-
         local map_copy = tools.table_dup(rt.map)
         for _, current in pairs(map_copy) do
-            local local_process = current.process
-            if local_process then
-                local_process(current)
-            else
                 process(current)
             end
-        end
-
-        rt.boost = false
+        gdata.boost = nil
     end
 
     ---@param data NthTickEventData
     local function on_tick(data)
-
-        GAMETICK = data.tick
         map = rt.map
-        if not map then return end
+        gdata = rt.gdata
 
-        local currentid = rt.currentid
+        if not map or not gdata then
+            Runtime.init_data(rt)
+            map = rt.map
+            gdata = rt.gdata
+        end
+
+        if rt.disabled then return end
+
         local size = table_size(map)
         if size == 0 then return end
 
-        if rt.boost then
+        if gdata.boost then
             boost()
             return
         end
@@ -121,32 +130,41 @@ function Runtime.get(name)
         local run_rate = size / config.refresh_rate
         if run_rate > max_per_run then run_rate = max_per_run end
 
-        refresh_index = refresh_index + run_rate
-        while (refresh_index > 0) do
-            local current
-            currentid, current = next(map, currentid)
+        gdata.refresh_index = gdata.refresh_index + run_rate
+        while (gdata.refresh_index > 0) do
+            local currentid, current = next(map, gdata.currentid)
+            gdata.currentid = currentid
+
             if not current then break end
-            rt.currentid = currentid
-            local local_process = current.process
-            if local_process then
-                local_process(current)
-            else
-                process(current)
+
+            if tools.tracing then
+                debug(config.name .. ":(" .. currentid .. ")")
             end
-            currentid = rt.currentid
-            refresh_index = refresh_index - 1
+
+                process(current)
+            gdata.refresh_index = gdata.refresh_index - 1
         end
-        rt.currentid = currentid
     end
 
     tools.on_nth_tick(config.ntick, on_tick)
     return rt
 end
 
+function Runtime:update_config()
+    local config = self.config
+    local max_per_tick = config.max_per_tick
+    local max_per_run = max_per_tick
+    if not max_per_tick or max_per_tick < 1 then
+        max_per_tick = 1
+    end
+    if config.ntick > 0 then max_per_run = max_per_tick * config.ntick end
+    config.max_per_run = max_per_run
+end
+
 ---@param map table<int, EntityWithIdAndProcess>
 function Runtime:set_map(map)
     self.map = map
-    global[self.config.global_name] = map
+    storage[self.config.global_name] = map
 end
 
 --- Add object to runtime
@@ -161,7 +179,6 @@ end
 ---@param self Runtime
 ---@param eid EntityWithId | integer
 function Runtime:remove(eid)
-
     if not self.map then return end
 
     ---@type integer
@@ -172,8 +189,29 @@ function Runtime:remove(eid)
         id = eid.id
     end
 
-    if id == self.currentid then self.currentid = nil end
+    if id == self.gdata.currentid then
+        self.gdata.currentid = nil
+    end
     self.map[id] = nil
+end
+
+function Runtime.init_data(rt)
+    if not rt.map then
+        rt.map = {}
+        storage[rt.config.global_name] = rt.map
+    end
+    if not rt.gdata then
+        local gdata = { refresh_index = 0 }
+        storage[rt.config.rt_name] = gdata
+        rt.gdata = gdata
+    end
+end
+
+function Runtime.initialize()
+    for _, config in pairs(configs) do
+        local rt = Runtime.get(config.name)
+        Runtime.init_data(rt)
+    end
 end
 
 return Runtime

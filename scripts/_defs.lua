@@ -3,6 +3,8 @@ local commons = require("scripts.commons")
 
 local prefix = commons.prefix
 
+---@alias QName string
+
 ---@class IndexableEntity
 ---@field position MapPosition
 
@@ -16,9 +18,9 @@ local prefix = commons.prefix
 ---@field force_id integer
 ---@field trainstop LuaEntity                               @ Associated train stop
 ---@field trainstop_id integer                              @ Associated train stop id
----@field requested_items table<string, Request>            @ Requested items (round to threshholds)
----@field produced_items table<string, Request>             @ Provided items (round to threshholds)
----@field priority_map table<string, integer>               @ Item => priority
+---@field requested_items table<QName, Request>            @ Requested items (round to threshholds)
+---@field produced_items table<QName, Request>             @ Provided items (round to threshholds)
+---@field priority_map table<QName, integer>               @ Item => priority
 ---@field train Train                                       @ current train in/tp depot
 ---@field trains table<int, Train>                          @ trains that target depot
 ---@field deliveries {[int]:Delivery}                       @ indexed by train id
@@ -57,6 +59,7 @@ local prefix = commons.prefix
 ---@field scanned_patterns {[string]:boolean}
 ---@field distance_cache {[integer]:number}
 ---@field inactive integer?
+---@field teleporter_in_range Device
 
 ---@class BuilderConfig
 ---@field builder_locomotive_item string
@@ -75,13 +78,13 @@ local prefix = commons.prefix
 ---@field max_delivery integer?                             @ Max delivery
 ---@field priority integer?                                 @ Priority
 ---@field inactivity_delay integer?                         @ inactive delay (s) added to request
----@field max_load_time integer?                            @ max load time for feeder
 ---@field locked_slots integer?                             @ locked slot 
 ---@field delivery_timeout integer?                         @ Timeout (s) before reporting train
 ---@field threshold integer?                                @ default request threshold 
 ---@field delivery_penalty integer?                         @ Distance penalty for each penalty
 ---@field station_locked boolean?                           @ Locked to station
 ---@field teleport_range integer?                           @ teleporter range
+---@field planet_teleporter boolean?                        @ planet teleporter
 ---@field combined boolean?                                 @ Combined request
 ---@field patterns {[string]:boolean}?
 ---@field has_specific_pattern boolean?
@@ -135,18 +138,12 @@ local prefix = commons.prefix
 ---@field connecting_ids table<string, boolean>
 ---@field is_orbit boolean
 ---@field teleporters table<integer, Device>
----@field production_indexes table<string, ProductionIndex[]>   @ not used
 ---@field trainstats table<string, integer>
 ---@field trainstats_tick integer
 ---@field trainstats_change boolean
 ---@field reservations table<string, boolean>
 ---@field reservations_tick integer
-
----@class ProductionIndex
----@field priority integer
----@field name string
----@field node_index SpatialIndexLink?
----@field productions Request[]
+---@field has_planet_teleporter boolean
 
 ---@class Delivery
 ---@field requester Device
@@ -178,8 +175,7 @@ local prefix = commons.prefix
 ---@field refueler Device
 ---@field refresh_tick integer
 ---@field is_empty boolean
----@field network_mask integer
----@field splitted_schedule TrainScheduleRecord[][]?
+---@field splitted_schedule ScheduleRecord[][]?
 ---@field teleporting boolean
 ---@field timeout_tick integer
 ---@field timeout_delay integer

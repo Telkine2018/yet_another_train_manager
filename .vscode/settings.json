@@ -11,5 +11,6 @@
         "log",
         "data",
         "require"
-    ]
+    ],
+    "Lua.completion.autoRequire": false
 }

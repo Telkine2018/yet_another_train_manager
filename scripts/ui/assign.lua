@@ -21,7 +21,6 @@ local function np(name) return uiassign_prefix .. name end
 local header_defs = {
 
     { name = "surface",      width = 100 },
-    { name = "network_mask", width = 100 },
     { name = "composition",  width = 200 },
     { name = "used",         width = 100 },
     { name = "free",         width = 100 },
@@ -70,7 +69,6 @@ end
 
 ---@class Assign : TrainComposition
 ---@field surface string
----@field network_mask integer
 ---@field used_count integer
 ---@field free_count integer
 ---@field buffer_count integer
@@ -89,16 +87,6 @@ local sort_methods = {
     ---@param a1 Assign
     ---@param a2 Assign
         function(a1, a2) return a1.surface > a2.surface end,
-
-    network_mask = --
-    ---@param a1 Assign
-    ---@param a2 Assign
-        function(a1, a2) return a1.network_mask < a2.network_mask end,
-
-    ["-network_mask"] = --
-    ---@param a1 Assign
-    ---@param a2 Assign
-        function(a1, a2) return a1.network_mask > a2.network_mask end,
 
     composition = --
     ---@param a1 Assign
@@ -165,7 +153,6 @@ function uiassign.update(player)
         if not assign then
             assign = {
                 surface = train.front_stock.surface.name,
-                network_mask = train.network_mask,
                 rpattern = train.rpattern,
                 gpattern = train.gpattern,
                 free_count = 0,
@@ -210,15 +197,6 @@ function uiassign.update(player)
         }
         fsurface.style.horizontal_align = "center"
         fsurface.style.width = header_defs[field_index].width
-        field_index = field_index + 1
-
-        -------- Network
-        local fnetwork = row.add {
-            type = "label",
-            caption = tostring(assign.network_mask)
-        }
-        fnetwork.style.horizontal_align = "center"
-        fnetwork.style.width = header_defs[field_index].width
         field_index = field_index + 1
 
         -------- Composition

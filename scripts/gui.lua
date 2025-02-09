@@ -197,12 +197,12 @@ local function create_fields(ftable, device)
         ftable.add { type = "label", caption = { np(name) } }
 
         local value = dconfig[name]
-        if not value and default_item and game.item_prototypes[default_item] then
+        if not value and default_item and prototypes.item[default_item] then
             value = default_item
         end
         if elem_type == "entity" then
             if value then
-                local proto = game.item_prototypes[value]
+                local proto = prototypes.item[value]
                 if proto then
                     value = proto.place_result.name
                 end
@@ -241,8 +241,8 @@ local function create_fields(ftable, device)
         label.style.bottom_margin = 3
 
         local items = {}
-        for i=1, item_count do
-            table.insert(items, {np(name .. "." .. i)})    
+        for i = 1, item_count do
+            table.insert(items, { np(name .. "." .. i) })
         end
 
         local field = ftable.add {
@@ -257,7 +257,7 @@ local function create_fields(ftable, device)
     end
 
 
-    create_mask("network_mask", use_all_enable[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
+    create_mask("network_mask", use_carry[role], settings.get_player_settings(ftable.player_index)["yaltn-network_mask_size"].value --[[@as integer]])
 
     add_numeric_field("priority", has_priority[role], np("priority-tooltip"), true)
     add_numeric_field("rpriority", role == defs.device_roles.builder, nil, true)
@@ -266,10 +266,10 @@ local function create_fields(ftable, device)
     add_numeric_field("threshold", use_requester[role])
     add_numeric_field("locked_slots", use_provider_not_buffer[role], np("locked_slots-tooltip"))
     add_numeric_field("inactivity_delay", use_carry[role], np("inactivity_delay.tooltip"))
-    add_numeric_field("max_load_time", role == defs.device_roles.feeder, np("max_load_time.tooltip"))
     add_numeric_field("delivery_penalty", use_provider_not_buffer[role], nil, true)
     add_numeric_field("teleport_range", role == defs.device_roles.teleporter, nil, false)
-    add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"), true)
+    add_boolean_field("planet_teleporter", role == defs.device_roles.teleporter, np("planet_teleporter.tooltip"))
+    add_boolean_field("is_parking", role == defs.device_roles.depot, np("is_parking.tooltip"))
 
     add_boolean_field("station_locked", role == defs.device_roles.buffer or role == defs.device_roles.feeder)
     add_boolean_field("combined", use_requester[role], np("combined.tooltip"))
@@ -390,7 +390,7 @@ local function get_units(include_cargo, include_fluid)
             tools.comma_value(tostring(config.ui_train_wagon_count * config.ui_fluid_wagon_capacity)) })
 
     if include_cargo then
-        local wagons = game.get_filtered_entity_prototypes { { filter = "type", type = "cargo-wagon" } }
+        local wagons = prototypes.get_entity_filtered { { filter = "type", type = "cargo-wagon" } }
         for _, wagon in pairs(wagons) do
             table.insert(units_cache, {
                 name = wagon.name,
@@ -404,7 +404,7 @@ local function get_units(include_cargo, include_fluid)
     end
 
     if include_fluid then
-        local wagons = game.get_filtered_entity_prototypes { { filter = "type", type = "fluid-wagon" } }
+        local wagons = prototypes.get_entity_filtered { { filter = "type", type = "fluid-wagon" } }
         for _, wagon in pairs(wagons) do
             table.insert(units_cache, {
                 name = wagon.name,
@@ -423,12 +423,12 @@ end
 ---@param name string
 ---@return UnitType
 local function get_unit(name)
-    local units_cache_map = global.units_cache_map
+    local units_cache_map = storage.units_cache_map
     if not units_cache_map then
         local units_cache = get_units(true, true)
-        global.units_cache_map = tools.table_map(units_cache, function(i, unit) return unit.name, unit end)
+        storage.units_cache_map = tools.table_map(units_cache, function(i, unit) return unit.name, unit end)
     end
-    units_cache_map = global.units_cache_map
+    units_cache_map = storage.units_cache_map
 
     local unit = units_cache_map[name]
     if unit then return unit end
@@ -483,7 +483,7 @@ local function get_request_tooltip(player_index, request)
     if not (request and request.name and request.amount and request.amount_unit) then
         return { np("request-item.tooltip") }
     end
-    local signal = tools.sprite_to_signal(request.name)
+    local signal = tools.id_to_signal(request.name)
     if not signal or (signal.type ~= "item" and signal.type ~= "fluid") then
         return { np("request-item.tooltip") }
     end
@@ -509,16 +509,16 @@ local function get_request_tooltip(player_index, request)
     local count = get_real_count(request.name, request.amount, request.amount_unit, signal.type)
     local name
     if signal.type == "item" then
-        name = game.item_prototypes[signal.name].localised_name
+        name = prototypes.item[signal.name].localised_name
     else
-        name = game.fluid_prototypes[signal.name].localised_name
+        name = prototypes.fluid[signal.name].localised_name
     end
 
-    return { 
-        np("request-item-qty.tooltip"), 
+    return {
+        np("request-item-qty.tooltip"),
         tools.comma_value(count),
-         "[" .. signal.type .. "=" .. signal.name .. "]",
-        { "", "[color=cyan]", name, "[/color]" } ,
+        "[" .. signal.type .. "=" .. signal.name .. "]",
+        { "", "[color=cyan]", name, "[/color]" },
         stock_tooltip
     }
 end
@@ -527,8 +527,11 @@ end
 ---@return RequestConfig?
 local function get_request(flow)
     local fsignal = flow.signal
-    local signal = fsignal.elem_value --[[as SignalID]]
-    if signal and (signal.type == "item" or signal.type == "fluid") then
+    local signal = fsignal.elem_value --[[@as SignalID]]
+    if type(signal) == "string" then
+        signal = { type = "item", name = "signal" }
+    end
+    if signal and (not signal.type or signal.type == "item" or signal.type == "fluid") then
         local famount = flow.amount
         local amount = tonumber(famount.text)
         if amount and amount > 0 then
@@ -540,7 +543,7 @@ local function get_request(flow)
 
                 ---@type RequestConfig
                 local request = {
-                    name = signal.type .. "/" .. signal.name,
+                    name = tools.signal_to_id(signal),
                     amount = amount,
                     threshold = threshold,
                     amount_unit = famount_unit and
@@ -582,6 +585,7 @@ local function create_request_field(request_table, request)
             tooltip = unit.tooltip
         }
         unit_field.tags = { value = value }
+        unit_field.style = "yatm_tiny_slot_button_default"
         return unit_field
     end
 
@@ -592,6 +596,7 @@ local function create_request_field(request_table, request)
         name = "signal",
         tooltip = get_request_tooltip(flow.player_index, request)
     }
+    signal_field.style = "yatm_tiny_slot_button_default"
     tools.set_name_handler(signal_field, np("request_signal"))
 
     local amount_field = flow.add {
@@ -627,7 +632,7 @@ local function create_request_field(request_table, request)
     flow.style.left_margin = 16
 
     if request then
-        local signal = tools.sprite_to_signal(request.name) --[[@as SignalID]]
+        local signal = tools.id_to_signal(request.name) --[[@as SignalID]]
         signal_field.elem_value = signal
 
         amount_field.text = request.amount and tostring(request.amount) or ""
@@ -672,19 +677,23 @@ tools.on_named_event(np("request_signal"), defines.events.on_gui_elem_changed,
         if not (element and element.valid) then return end
         local item = element.elem_value
         local flow = element.parent
-        local request_table = flow.parent
-        local index = tools.index_of(request_table.children, flow)
-        if index == #request_table.children then
-            if item then
-                create_request_field(request_table, nil)
-            end
-        else
-            if not item then
-                flow.destroy()
-                return
+        if flow then
+            local request_table = flow.parent
+            if request_table then
+                local index = tools.index_of(request_table.children, flow)
+                if index == #request_table.children then
+                    if item then
+                        create_request_field(request_table, nil)
+                    end
+                else
+                    if not item then
+                        flow.destroy()
+                        return
+                    end
+                end
+                update_request_tooltip(flow)
             end
         end
-        update_request_tooltip(flow)
     end)
 
 tools.on_named_event(np("amount"), defines.events.on_gui_text_changed,
@@ -710,6 +719,7 @@ end
 ---@return boolean?
 local function get_unit_selection(element)
     local flow = element.parent
+    ---@cast flow -nil
     local signal = flow["signal"]
     local elem_value = signal.elem_value
     local include_cargo, include_fluid
@@ -779,6 +789,7 @@ local function on_gui_opened(e)
 
     player.opened = nil
     local device_entity = e.entity
+    if not device_entity then return end
 
     local frame = player.gui.screen.add {
         type = "frame",
@@ -806,7 +817,7 @@ local function on_gui_opened(e)
         name = np("close"),
         style = "frame_action_button",
         mouse_button_filter = { "left" },
-        sprite = "utility/close_white",
+        sprite = "utility/close",
         hovered_sprite = "utility/close_black"
     }
 
@@ -815,6 +826,7 @@ local function on_gui_opened(e)
         direction = "vertical",
         style = "inside_shallow_frame_with_padding"
     }
+
 
     local device = devices[device_entity.unit_number]
     local selected_index = device.dconfig.role + 1
@@ -918,7 +930,7 @@ tools.on_gui_click(np("importfa"),
         end
 
         if not ingredients then
-            player.print { np("no-selection-in-factory-analyzer") }
+            player.print({ np("no-selection-in-factory-analyzer") }, commons.print_settings)
             return
         end
 
@@ -956,10 +968,10 @@ tools.on_gui_click(np("importfa"),
                 local request
 
                 if use_stack then
-                    local signal = tools.sprite_to_signal(name)
+                    local signal = tools.id_to_signal(name)
                     ---@cast signal -nil
                     if signal.type == "item" then
-                        local proto = game.item_prototypes[signal.name]
+                        local proto = prototypes.item[signal.name]
                         request = {
                             name = name,
                             amount = math.ceil(qty / proto.stack_size),
@@ -991,6 +1003,8 @@ local function update_runtime_config(device, player)
     device_manager.delete_red_input(device)
     device_manager.delete_green_input(device)
 
+    yutils.register_network_to_compute(device.network)
+
     local dconfig = device.dconfig
     device.patterns = dconfig.patterns or device.scanned_patterns
     device.has_specific_pattern = dconfig.has_specific_pattern
@@ -1016,16 +1030,18 @@ local function update_runtime_config(device, player)
     device.internal_requests = nil
     device.internal_threshold = {}
 
+    ---@type LogisticFilter[]
     local red_signals = {}
     local index1 = 1
 
     for _, request in pairs(device.dconfig.requests) do
-        local signal = tools.sprite_to_signal(request.name) --[[@as SignalID]]
+        local signal = tools.id_to_signal(request.name)
+        ---@cast signal -nil
         local request_count = get_real_count(request.name, request.amount, request.amount_unit, signal.type)
 
         if config.use_combinator_for_request then
             if request_count > 0 then
-                table.insert(red_signals, { signal = signal, count = -request_count, index = index1 })
+                table.insert(red_signals, { value = signal, min = -request_count })
                 index1 = index1 + 1
             end
         else
@@ -1047,7 +1063,7 @@ local function update_runtime_config(device, player)
                 threshold_count then
                 if player then
                     player.print({ "yaltn-messages.threshold_over_request" },
-                        { 1, 0, 0 })
+                        { color = { 1, 0, 0 }, game_state = false, skip = defines.print_skip.if_visible })
                 end
             end
         end
@@ -1070,8 +1086,12 @@ local function update_runtime_config(device, player)
 
     if next(red_signals) then
         local red_input = device_manager.get_red_input(device)
-        local cb = red_input.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-        cb.parameters = red_signals
+        local section = (red_input.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+        section.filters = red_signals
+    end
+
+    if tools.tracing then
+        tools.debug("yutils.update_runtime_config() ")
     end
 end
 
@@ -1103,6 +1123,7 @@ local function save_values(player)
             return
         end
 
+        ---@type any
         local value = field.text
         if not value or value == '' then
             value = nil
@@ -1127,7 +1148,7 @@ local function save_values(player)
     end
 
 
-    
+
     ---@param name string
     ---@param values table<string, any>
     local function save_mask(name, values)
@@ -1168,7 +1189,7 @@ local function save_values(player)
         if not value or value == '' then
             value = nil
         elseif field.elem_type == "entity" then
-            value = game.entity_prototypes[value].items_to_place_this[1].name
+            value = prototypes.item[value].items_to_place_this[1].name
         end
         dconfig[name] = value
     end
@@ -1182,7 +1203,7 @@ local function save_values(player)
             return
         end
 
-        local value = field.selected_index 
+        local value = field.selected_index
         dconfig[name] = value
     end
 
@@ -1193,10 +1214,10 @@ local function save_values(player)
     save_number("threshold", 1, nil)
     save_number("locked_slots", 0, nil)
     save_number("inactivity_delay", 1, nil)
-    save_number("max_load_time", 1, nil)
     save_number("delivery_penalty", 1, nil)
     save_number("teleport_range", 60, nil)
-    
+
+    save_boolean("planet_teleporter")
     save_boolean("is_parking")
     save_boolean("station_locked")
     save_boolean("green_wire_as_priority")
@@ -1269,10 +1290,8 @@ tools.on_gui_click(np("read_signals"), ---@param e EventData.on_gui_click
 
         if not (device.entity and device.entity.valid) then return end
 
-        local green_circuit = device.entity.get_circuit_network(defines.wire_type.green,
-            defines.circuit_connector_id.combinator_input)
-        local red_circuit = device.entity.get_circuit_network(defines.wire_type.red,
-            defines.circuit_connector_id.combinator_input)
+        local green_circuit = device.entity.get_circuit_network(defines.wire_connector_id.combinator_input_green)
+        local red_circuit = device.entity.get_circuit_network(defines.wire_connector_id.combinator_input_red)
         if not red_circuit then return end
 
         local signals = red_circuit.signals
@@ -1338,11 +1357,13 @@ tools.on_event(defines.events.on_gui_closed,
         close_ui(player)
         if e.entity and e.entity.valid and e.entity.type == "cargo-wagon" then
             local ttrain = e.entity.train
-            local context = yutils.get_context()
-            local train = context.trains[ttrain.id]
-            if not train then return end
-            if train.depot and train.depot.role == defs.device_roles.buffer then
-                yutils.update_production_from_content(train.depot, train)
+            if ttrain then
+                local context = yutils.get_context()
+                local train = context.trains[ttrain.id]
+                if not train then return end
+                if train.depot and train.depot.role == defs.device_roles.buffer then
+                    yutils.update_production_from_content(train.depot, train)
+                end
             end
         end
     end)
@@ -1372,7 +1393,7 @@ local function on_entity_settings_pasted(e)
         local device1 = devices[src.unit_number]
         local device2 = devices[dst.unit_number]
 
-        local copy = game.json_to_table(game.table_to_json(device1.dconfig)) --[[@as DeviceConfig]]
+        local copy = helpers.json_to_table(helpers.table_to_json(device1.dconfig)) --[[@as DeviceConfig]]
         device2.dconfig = copy
         yutils.update_runtime_config(device2)
     end

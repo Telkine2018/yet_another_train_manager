@@ -17,10 +17,9 @@ local function compute_stat(network)
 
 
     local surface = game.surfaces[network.surface_index]
-    local trains = surface.get_trains(network.force_index)
+    local trains = game.train_manager.get_trains { surface = surface, force = network.force_index }
 
     for _, ttrain in pairs(trains) do
-        
         local train = context.trains[ttrain.id]
         if train then
             local gpattern = train.gpattern
@@ -29,7 +28,7 @@ local function compute_stat(network)
     end
 
     network.trainstats = stats
-    network.trainstats_tick = GAMETICK
+    network.trainstats_tick = game.tick
     network.trainstats_change = nil
 end
 
@@ -37,7 +36,7 @@ end
 ---@param pattern string
 ---@return integer
 function trainstats.get(network, pattern)
-    if network.trainstats_change or not network.trainstats or network.trainstats_tick < GAMETICK - 300 then
+    if network.trainstats_change or not network.trainstats or network.trainstats_tick < game.tick - 300 then
         compute_stat(network)
     end
     local stat = network.trainstats[pattern]

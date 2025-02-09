@@ -87,7 +87,7 @@ tools.on_event(defines.events.on_runtime_mod_setting_changed,
 ---@param e EventData.on_runtime_mod_setting_changed
                function(e) 
                 load_config() 
-                global.units_cache_map = nil
+                storage.units_cache_map = nil
             end)
 
 return config

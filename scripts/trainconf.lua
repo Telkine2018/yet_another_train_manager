@@ -108,6 +108,7 @@ function trainconf.get_train_composition(train)
     local mask = 1
     for index = 1, len do
         local carriage = carriages[index]
+        if not carriage.valid then return false end
         local generic_type = carriage.type
         local name = carriage.name
         local is_back
@@ -120,7 +121,7 @@ function trainconf.get_train_composition(train)
             end
         elseif generic_type == "cargo-wagon" or generic_type == "artillery-wagon" then
             generic_type = "c"
-            train.slot_count = train.slot_count + carriage.prototype.get_inventory_size(defines.inventory.cargo_wagon)
+            train.slot_count = train.slot_count + carriage.prototype.get_inventory_size(defines.inventory.cargo_wagon, carriage.quality)
             train.cargo_count = train.cargo_count + 1
             id = id + cargo_range
             if index <= 31 then
@@ -208,7 +209,7 @@ local scan_infos = {
 
 local scan_type_map = {
     "pump", "inserter", "loader", "loader-1x1", "mining-drill",
-    "rail-chain-signal", "rail-signal", "train-stop", "straight-rail"
+    "rail-chain-signal", "rail-signal", "train-stop", "legacy-straight-rail", "straight-rail"
 }
 
 ---@param device Device
@@ -263,7 +264,7 @@ function trainconf.scan_device(device)
         local cargo_and_fluid = true
         for _, entity in pairs(entities) do
             local type = entity.type
-            if type == "straight-rail" then
+            if type == "straight-rail" or type == "legacy-straight-rail" then
                 has_rail = true
             elseif type == "pump" then
                 has_fluid = true
@@ -442,7 +443,7 @@ function trainconf.pattern_to_mask(pattern)
         elseif element.type == "l" then
             f = apply_loco
         else
-            local proto = game.entity_prototypes[element.type]
+            local proto = prototypes.entity[element.type]
             if proto.type == "cargo-wagon" then
                 f = apply_cargo
             elseif proto.type == "fluid-wagon" then
@@ -591,7 +592,7 @@ function trainconf.get_sprite(type)
     if sprite_name then
         return sprite_name
     else
-        local proto = game.entity_prototypes[type.type]
+        local proto = prototypes.entity[type.type]
         if proto then
             local item = proto.items_to_place_this[1]
             if item then
@@ -647,7 +648,7 @@ function trainconf.create_generic(pattern)
     local result = {}
     for _, element in pairs(elements) do
         local name = element.type
-        local proto = game.entity_prototypes[name]
+        local proto = prototypes.entity[name]
         local type = proto.type
         if type == "locomotive" then
             type = "*"

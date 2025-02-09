@@ -1,3 +1,5 @@
+local migration = require("__flib__.migration")
+
 local tools = require("scripts.tools")
 local commons = require("scripts.commons")
 local defs = require("scripts._defs")
@@ -18,8 +20,6 @@ local trains_runtime
 ---@type Context
 local context
 
-local is_configuration_changed
-
 local image_operations = {
 
     "+", "-", "*", "/", "%", "^", "<<", ">>", "AND", "OR", "XOR"
@@ -36,127 +36,18 @@ local teleport_role = defs.device_roles.teleporter
 
 local band = bit32.band
 
----@param context Context
-local function update_trains(context)
-    local toremove = {}
-    for _, train in pairs(context.trains) do
-        if not trainconf.get_train_composition(train) then
-            toremove[train.id] = train
-        end
-    end
-    for id, _ in pairs(toremove) do
-        context.trains[id] = nil
-    end
-end
-
----@param context Context
-function yutils.convert_mask_to_pattern(context)
-    update_trains(context)
-    if context.pattern_ids then
-        return false
-    end
-
-    context.pattern_ids = {}
-    for _, d in pairs(devices_runtime.map) do
-        local device = d --[[@as Device]]
-        local dconfig = device.dconfig
-
-        trainconf.scan_device(device)
-
-        trainconf.load_config_from_mask(device)
-
-        yutils.update_runtime_config(device)
-
-        device.loco_mask = nil
-        device.cargo_mask = nil
-        device.fluid_mask = nil
-        device.rloco_mask = nil
-
-        dconfig.loco_mask = nil
-        dconfig.cargo_mask = nil
-        dconfig.fluid_mask = nil
-        dconfig.rloco_mask = nil
-
-        if dconfig.role == defs.device_roles.builder then
-            device.builder_create_count = (device.builder_remove_count or 0) + device.create_count
-        end
-    end
-    return true
-end
-
-local function on_configuration_changed(context)
-    is_configuration_changed = true
-
-    if not context.session_tick then
-        context.session_tick = -1
-    end
-
-    yutils.fix_all(context)
-    yutils.convert_mask_to_pattern(context)
-    for _, d in pairs(devices_runtime.map) do
-        local device = d --[[@as Device]]
-        device.distance_cache = nil
-    end
-
-    --- Init UI
-    yutils.init_ui(context)
-
-    --- Init SE
-    for _, map in pairs(context.networks) do
-        for _, network in pairs(map) do
-            network.connected_network = nil
-            network.connecting_ids = nil
-            network.connecting_trainstops = nil
-            network.connecting_outputs = nil
-            network.is_orbit = nil
-        end
-    end
-    yutils.init_se(context)
-    global.debug_version = commons.debug_version
-    game.print { "yaltn-device.update-message" }
-end
-
 ---@return Context
 function yutils.get_context()
     if context then return context end
 
-    context = global.context --[[@as Context]]
+    context = storage.context --[[@as Context]]
     if context then
+        yutils.init_se(context)
         yutils.load_pattern_cache()
-        if not is_configuration_changed then
-            on_configuration_changed(context)
-        end
         return context
     end
-
-    devices_runtime = Runtime.get("Device")
-    trains_runtime = Runtime.get("Trains")
-    context = {
-        networks = {},
-        running_requests = nil,
-        waiting_requests = {},
-        version = commons.context_version,
-        trainstop_map = {},
-        event_id = 1,
-        event_log = {},
-        configs = {},
-        config_id = 1,
-        delivery_id = 1,
-        min_log_id = 1,
-        pattern_ids = {},
-        session_tick = -1
-    }
-    context.trains = trains_runtime.map --[[@as table<integer, Train>]]
-    global.context = context
     return context
 end
-
-tools.on_init(yutils.get_context)
-tools.on_configuration_changed(
----@param data ConfigurationChangedData
-    function(data)
-        on_configuration_changed(yutils.get_context())
-    end)
 
 ---@param device Device
 function yutils.fix_device_internals(device)
@@ -190,175 +81,19 @@ function yutils.fix_device_internals(device)
 end
 
 function yutils.purge_config()
+    if config.disabled then return end
     local context = yutils.get_context()
     local to_remove = {}
     local limit_date = game.tick - 60 * 7200
     local configs = context.configs
-    for id, config in pairs(configs) do
-        if config.remove_tick and config.remove_tick < limit_date then
+    for id, device_config in pairs(configs) do
+        if device_config.remove_tick and device_config.remove_tick < limit_date then
             table.insert(to_remove, id)
         end
     end
     for _, id in pairs(to_remove) do
         configs[id] = nil
     end
-end
-
----@param name string?
----@return boolean
-local function is_invalid_name(name)
-    if not name then
-        return true
-    end
-    local signal = tools.sprite_to_signal(name)
-    if not signal then
-        return true
-    end
-    if signal.type == "item" then
-        local proto = game.item_prototypes[signal.name]
-        if not proto then
-            return true
-        end
-    elseif signal.type == "fluid" then
-        local proto = game.fluid_prototypes[signal.name]
-        if not proto then
-            return true
-        end
-    else
-        local proto = game.virtual_signal_prototypes[signal.name]
-        if not proto then
-            return true
-        end
-    end
-    return false
-end
-
----@param signal_table table<string, any>
-local function fix_signal_table(signal_table)
-    if not signal_table then
-        return
-    end
-    local removed = {}
-    for name, _ in pairs(signal_table) do
-        if is_invalid_name(name) then
-            table.insert(removed, name)
-        end
-    end
-    for _, name in pairs(removed) do
-        signal_table[name] = nil
-    end
-end
-
----@param delivery Delivery
-local function fix_delivery(delivery)
-    local combined_delivery = delivery
-    while combined_delivery do
-        fix_signal_table(combined_delivery.content)
-        combined_delivery = combined_delivery.combined_delivery
-    end
-end
-
----@param device Device
-local function fix_device(device)
-    fix_signal_table(device.requested_items)
-    fix_signal_table(device.produced_items)
-    if device.deliveries then
-        for _, delivery in pairs(device.deliveries) do
-            fix_delivery(delivery)
-        end
-    end
-    fix_signal_table(device.internal_requests)
-    fix_signal_table(device.internal_threshold)
-
-    local dconfig = device.dconfig
-    if dconfig and dconfig.requests then
-        local index = 1
-        while index <= #dconfig.requests do
-            local request = dconfig.requests[index]
-            if is_invalid_name(request.name) then
-                table.remove(dconfig.requests, index)
-            else
-                index = index + 1
-            end
-        end
-    end
-    if device.parking_penalty then
-        device.parking_penalty = nil
-        device.is_parking = true
-    end
-
-    if global.debug_version < 5 then
-        local dconfig = device.dconfig
-        if dconfig then
-            if dconfig.red_wire_as_stock then
-                dconfig.red_wire_mode = 2
-            else
-                dconfig.red_wire_mode = 1
-            end
-            dconfig.red_wire_as_stock = nil
-        end
-
-        if device.red_wire_as_stock then
-            device.red_wire_mode = 2
-        else
-            device.red_wire_mode = 1
-        end
-    end
-end
-
----@param network SurfaceNetwork
-local function fix_network(network)
-    fix_signal_table(network.productions)
-end
-
----@param context Context
-function yutils.fix_all(context)
-    for _, device in pairs(devices_runtime.map) do
-        ---@cast device Device
-        fix_device(device)
-    end
-    for _, nn in pairs(context.networks) do
-        for _, network in pairs(nn) do
-            fix_network(network)
-        end
-    end
-
-    ---@param request_table Request[]
-    local function fix_request_table(request_table)
-        if not request_table then return end
-
-        if request_table then
-            local index = 1
-            while index <= #request_table do
-                if is_invalid_name(request_table[index].name) then
-                    table.remove(request_table, index)
-                else
-                    index = index + 1
-                end
-            end
-        end
-    end
-
-    fix_request_table(context.waiting_requests)
-    fix_request_table(context.running_requests)
-
-    for _, train in pairs(context.trains) do
-        if train.state == defs.train_states.to_requester then
-            if train.depot then
-                if train.train.valid then
-                    if train.train.state == defines.train_state.destination_full then
-                        train.state = defs.train_states.at_waiting_station
-                    else
-                        train.state = defs.train_states.to_waiting_station
-                    end
-                end
-            end
-        end
-    end
-    context.request_iter = 0
-    context.event_log    = {}
-    context.min_log_id   = 1
-    context.event_id     = 1
 end
 
 ---@param context Context
@@ -437,6 +172,10 @@ function yutils.add_request(request)
     if request.inqueue then return end
 
     if device.inactive then return end
+
+    if tools.tracing then
+        tools.debug("yutils.add_request: " .. request.name .. "=" .. request.requested)
+    end
 
     request.inqueue = true
     request.cancelled = false
@@ -629,33 +368,23 @@ function yutils.remove_train(train, report_manual)
     end
 end
 
-local loco_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-loco_mask"
-}
-local cargo_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-cargo_mask"
-}
-local fluid_mask_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-fluid_mask"
-}
-local identifier_signal = {
-    type = "virtual",
-    name = commons.prefix .. "-identifier"
-}
+local loco_mask_signal = tools.build_virtual_signal(commons.prefix .. "-loco_mask")
+local cargo_mask_signal = tools.build_virtual_signal(commons.prefix .. "-cargo_mask")
+local fluid_mask_signal = tools.build_virtual_signal(commons.prefix .. "-fluid_mask")
+local identifier_signal = tools.build_virtual_signal(commons.prefix .. "-identifier")
 
 ---@param train Train
 ---@param device Device
 function yutils.set_train_composition(train, device)
     if device.out_red.valid then
-        local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-
-        cb.set_signal(1, { signal = loco_mask_signal, count = train.loco_mask })
-        cb.set_signal(2, { signal = cargo_mask_signal, count = train.cargo_mask })
-        cb.set_signal(3, { signal = fluid_mask_signal, count = train.fluid_mask })
-        cb.set_signal(3, { signal = identifier_signal, count = train.pattern_id })
+        local compo = {
+            { value = loco_mask_signal,  min = train.loco_mask },
+            { value = cargo_mask_signal, min = train.cargo_mask },
+            { value = fluid_mask_signal, min = train.fluid_mask },
+            { value = identifier_signal, min = train.pattern_id }
+        }
+        local section = (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+        section.filters = compo
     end
 end
 
@@ -693,7 +422,7 @@ function yutils.has_fuel(train, min_time)
         for _, loco in pairs(fb) do
             local inv = loco.get_fuel_inventory()
             local loco_proto = loco.prototype
-            local energy_usage = min_time * 60 * loco_proto.max_energy_usage -- energy consumption / ticks
+            local energy_usage = min_time * 60 * loco_proto.get_max_energy_usage() -- energy consumption / ticks
             local fuel_value = 0
             if inv then
                 local contents = inv.get_contents()
@@ -704,10 +433,12 @@ function yutils.has_fuel(train, min_time)
                     effectivity = burner_prototype.effectivity
                 end
 
-                for fuel, amount in pairs(contents) do
+                for _, item in pairs(contents) do
+                    local fuel = item.name
+                    local amount = item.count
                     local proto_fuel = fuel_cache[fuel]
                     if not proto_fuel then
-                        proto_fuel = game.item_prototypes[fuel].fuel_value
+                        proto_fuel = prototypes.item[fuel].fuel_value
                         fuel_cache[fuel] = proto_fuel
                     end
                     fuel_value = fuel_value + proto_fuel * amount * effectivity
@@ -741,7 +472,6 @@ function yutils.create_train(ttrain, station)
         network = station.network,
         state = defs.train_states.at_depot,
         depot = station,
-        network_mask = station.network_mask,
         refresh_tick = game.tick,
         front_stock = ttrain.front_stock,
         origin_id = station.id
@@ -795,16 +525,10 @@ end
 ---@param train Train
 ---@return Device?
 function yutils.find_refueler(network, train)
-    local network_mask = train.network_mask
-    local position = train.front_stock.position
     local refueler_list = {}
     local goals = {}
     for _, refueler in pairs(network.refuelers) do
         if refueler.train == nil then
-            if band(network_mask, refueler.network_mask) == 0 then
-                goto skip
-            end
-
             if refueler.patterns and not (refueler.patterns[train.gpattern] or refueler.patterns[train.rpattern]) then
                 goto skip
             end
@@ -814,6 +538,7 @@ function yutils.find_refueler(network, train)
             if refueler.inactive then goto skip end
 
             table.insert(refueler_list, refueler)
+
             table.insert(goals, { train_stop = refueler.trainstop })
         end
         ::skip::
@@ -826,7 +551,7 @@ function yutils.find_refueler(network, train)
         return refueler_list[1]
     end
 
-    local result = game.request_train_path {
+    local result = game.train_manager.request_train_path {
         goals = goals,
         train = train.train,
         type = "any-goal-accessible"
@@ -906,7 +631,7 @@ function yutils.read_train_internals(train)
     if not train.is_empty then
         log("not empty train")
     end
-    train.refresh_tick = GAMETICK
+    train.refresh_tick = game.tick
 end
 
 local black = commons.colors.black
@@ -1016,9 +741,10 @@ function yutils.register_se() end
 ---@param train Train
 ---@return boolean
 function yutils.is_train_stuck(train)
+    local gametick = game.tick
     if not train.timeout_tick or not train.timeout_pos then return false end
 
-    if not train.timeout_pos or train.timeout_tick >= GAMETICK then
+    if not train.timeout_pos or train.timeout_tick >= gametick then
         return false
     end
 
@@ -1027,7 +753,7 @@ function yutils.is_train_stuck(train)
         return true
     end
     train.timeout_pos = position
-    train.timeout_tick = GAMETICK + train.timeout_delay
+    train.timeout_tick = gametick + train.timeout_delay
     return false
 end
 
@@ -1038,9 +764,10 @@ local function get_train_content(train)
     local ttrain = train.train
     if train.cargo_count > 0 then
         local cargo_content = ttrain.get_contents()
-        for base_name, count in pairs(cargo_content) do
-            local name = "item/" .. base_name
-            train_content[name] = count
+        for _, item in pairs(cargo_content) do
+            local signalid = tools.signal_to_id(item)
+            ---@cast signalid -nil
+            train_content[signalid] = item.count
         end
     end
 
@@ -1060,6 +787,7 @@ yutils.get_train_content = get_train_content
 ---@param train Train
 function yutils.update_production_from_content(device, train)
     local train_content = get_train_content(train)
+    local gametick = game.tick
 
     for name, count in pairs(train_content) do
         local production = device.produced_items[name]
@@ -1071,7 +799,7 @@ function yutils.update_production_from_content(device, train)
                 requested = 0,
                 provided = count,
                 device = device,
-                create_tick = GAMETICK,
+                create_tick = gametick,
                 priority = device.priority,
                 position = device.position
             }
@@ -1232,9 +960,14 @@ end
 function yutils.content_to_item_map(content)
     local item_map = {}
     for name, count in pairs(content) do
-        local signalid = tools.sprite_to_signal(name) --[[@as SignalID]]
+        local signalid = tools.id_to_signal(name) --[[@as SignalID]]
         if signalid.type == "item" then
-            item_map[signalid.name] = count
+            local qname = signalid.name
+            ---@cast qname -nil
+            if signalid.quality and signalid.quality ~= "normal" then
+                qname = qname .. "/" .. signalid.quality 
+            end
+            item_map[qname] = count
         end
     end
     return item_map
@@ -1252,7 +985,7 @@ function yutils.create_layout_strings(pattern)
         if sprite_name then
             marker = "[img=" .. sprite_name .. "]"
         else
-            local item = game.entity_prototypes[element.type].items_to_place_this[1]
+            local item = prototypes.entity[element.type].items_to_place_this[1]
             if item then
                 marker = "[item=" .. item.name .. "]"
             end
@@ -1294,43 +1027,40 @@ function yutils.load_pattern_cache()
             end
         end
     end
-    global.pattern_cache = PatternCache
+    storage.pattern_cache = PatternCache
 end
 
 ---@param content {[string]:integer}
 ---@param sign integer
----@return ConstantCombinatorParameters[]
-function yutils.build_parameters(content, sign)
-    ---@type ConstantCombinatorParameters[]
-    local parameters
-    local index = 1
+---@return LogisticFilter[]
+function yutils.build_filters(content, sign)
+    ---@type LogisticFilter[]
+    local filters
     if content then
-        parameters = {}
+        filters = {}
         for name, count in pairs(content) do
-            local signalid = tools.sprite_to_signal(name)
-            table.insert(parameters, {
-                signal = signalid,
-                count = sign * count,
-                index = index
+            local signalid = tools.id_to_signal(name)
+            table.insert(filters, {
+                value = signalid,
+                min = sign * count
             })
-            index = index + 1
         end
     else
-        parameters = {}
+        filters = {}
     end
-    return parameters
+    return filters
 end
 
 ---@param device Device
----@param parameters ConstantCombinatorParameters[]
-function yutils.set_device_output(device, parameters)
+---@param filters LogisticFilter[]
+function yutils.set_device_output(device, filters)
     if not device.out_red.valid then return end
 
-    local cb = device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = parameters
+    local section = (device.out_red.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+    section.filters = filters
 
-    cb = device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]
-    cb.parameters = parameters
+    section = (device.out_green.get_or_create_control_behavior() --[[@as LuaConstantCombinatorControlBehavior]]).get_section(1)
+    section.filters = filters
 end
 
 function yutils.update_runtime_config(device) end
@@ -1345,11 +1075,11 @@ local function on_load()
 
     if context then
         context.trains = trains_runtime.map --[[@as table<integer, Train>]]
-    elseif global.debug_version == commons.debug_version then
-        context = global.context
+    elseif storage.debug_version == commons.debug_version then
+        context = storage.context
     end
-    if global.pattern_cache then
-        PatternCache = global.pattern_cache
+    if storage.pattern_cache then
+        PatternCache = storage.pattern_cache
     end
 
     yutils.register_se()
@@ -1360,5 +1090,116 @@ tools.on_nth_tick(60 * 60, yutils.purge_config)
 
 logger.get_context = yutils.get_context
 
+
+tools.on_init(function()
+    Runtime.initialize()
+    devices_runtime = Runtime.get("Device")
+    trains_runtime = Runtime.get("Trains")
+    context = {
+        networks = {},
+        running_requests = nil,
+        waiting_requests = {},
+        version = commons.context_version,
+        trainstop_map = {},
+        event_id = 1,
+        event_log = {},
+        configs = {},
+        config_id = 1,
+        delivery_id = 1,
+        min_log_id = 1,
+        pattern_ids = {},
+        session_tick = -1
+    }
+    context.trains = trains_runtime.map --[[@as table<integer, Train>]]
+    storage.context = context
+    yutils.init_se(context)
+    yutils.load_pattern_cache()
+    yutils.init_ui(context)
+end)
+
+---@param signalId SignalFilter
+---@return table
+function yutils.signal_name(signalId)
+    if signalId.type == "item" then
+        if string.find(signalId.name, "^deadlock%-stack") then
+            local name = string.sub(signalId.name, 16)
+            return { "",
+                "[item=" .. name .. "]",
+                { "?",
+                    { "item-name." .. name },
+                    { "entity-name." .. name }
+                }, " (Stacked)" }
+        else
+            local name = signalId.name
+            return { "",
+                "[item=" .. name .. ",quality=" .. (signalId.quality or "normal") .. "]",
+                { "?",
+                    { "item-name." .. name },
+                    { "entity-name." .. name } }
+            }
+        end
+    else
+        return { "", "[" .. signalId.type .. "=" .. signalId.name .. "]", { signalId.type .. "-name." .. signalId.name } }
+    end
+end
+
+
+---@param network SurfaceNetwork
+local function compute_teleporter_infos(network)
+    network.has_planet_teleporter = nil
+    if network.teleporters then
+        local teleporters = {}
+        for _, teleporter in pairs(network.teleporters) do
+            if teleporter.dconfig.planet_teleporter then
+                table.insert(teleporters, teleporter)
+            end
+        end
+        if #teleporters > 0 then
+            local node = spatial_index.build(teleporters)
+            local teleport_role = defs.device_roles.teleporter
+            local find_device = spatial_index.find_device
+            local surface_index = network.surface_index
+            local distance = tools.distance
+
+            ---@type Device
+            for _, device in pairs(devices_runtime.map) do
+                local d = device --[[@as Device]]
+                if d.dconfig.role ~= teleport_role and d.network.surface_index == surface_index then
+                    d.teleporter_in_range = nil
+                    if d.position then
+                        local found_teleporter = find_device(node, d) --[[@as Device]]
+                        local dist = distance(d.position, found_teleporter.position)
+                        if dist < found_teleporter.teleport_range then
+                            d.teleporter_in_range = found_teleporter
+                            network.has_planet_teleporter = true
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+---@param network SurfaceNetwork
+function yutils.register_network_to_compute(network)
+    local networks_to_compute = storage.networks_to_compute
+    local key = network.force_index .. "_" .. network.surface_index
+    if networks_to_compute then
+        networks_to_compute[key] = network
+    else
+        networks_to_compute = { [key] = network }
+        storage.networks_to_compute = networks_to_compute
+    end
+end
+
+tools.on_nth_tick(10, function()
+    local networks_to_compute = storage.networks_to_compute
+    if not networks_to_compute then return end
+    storage.networks_to_compute = nil
+    for _, network in pairs(networks_to_compute) do
+        compute_teleporter_infos(network)
+    end
+end
+)
 
 return yutils
